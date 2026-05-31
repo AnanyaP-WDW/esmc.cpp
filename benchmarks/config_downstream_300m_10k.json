@@ -1,0 +1,31 @@
+{
+  "model_size": "300m",
+  "backend": "cpu",
+  "models": [
+    {
+      "precision": "f16",
+      "path": "models/esmc-300m-f16.gguf"
+    },
+    {
+      "precision": "q8_0",
+      "path": "models/esmc-300m-Q8_0.gguf"
+    },
+    {
+      "precision": "q4_k_m",
+      "path": "models/esmc-300m-Q4_K_M.gguf"
+    },
+    {
+      "precision": "q4_k_s",
+      "path": "models/esmc-300m-Q4_K_S.gguf"
+    }
+  ],
+  "downstream": {
+    "dataset_dir": "benchmarks/proteingym_subset_10k",
+    "dataset_manifest": "benchmarks/datasets/proteingym_subset_10k_manifest.json",
+    "weights": "esmc-300m/model.safetensors",
+    "cache_dir": "results/downstream_cache/300m_10k",
+    "output_prefix": "results/downstream_300m_10k",
+    "threshold": 0.01,
+    "metrics": "spearman,pearson,kendall_tau_b,top10_overlap,bottom10_overlap"
+  }
+}

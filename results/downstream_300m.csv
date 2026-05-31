@@ -1,0 +1,6 @@
+dataset,subset,assay,model_size,precision,backend,metric_name,metric_value,pytorch_metric,delta_from_pytorch,threshold,passed,variants,cache_dir,error
+ProteinGym,DMS substitutions,A0A1I9GEU1_NEIME_Kennouche_2019,300m,pytorch,pytorch,spearman,-0.059935897435897424,-0.059935897435897424,0.0,0.01,True,64,/Users/ananyapathak/Desktop/oss/esmc.cpp/results/downstream_cache/300m/pytorch,
+ProteinGym,DMS substitutions,A0A1I9GEU1_NEIME_Kennouche_2019,300m,f16,cpu,spearman,-0.06456117858914956,-0.059935897435897424,-0.004625281153252135,0.01,True,64,/Users/ananyapathak/Desktop/oss/esmc.cpp/results/downstream_cache/300m/f16_cpu,
+ProteinGym,DMS substitutions,A0A1I9GEU1_NEIME_Kennouche_2019,300m,q8_0,cpu,spearman,-0.07999084249084248,-0.059935897435897424,-0.02005494505494506,0.01,False,64,/Users/ananyapathak/Desktop/oss/esmc.cpp/results/downstream_cache/300m/q8_0_cpu,
+ProteinGym,DMS substitutions,A0A1I9GEU1_NEIME_Kennouche_2019,300m,q4_k_m,cpu,spearman,-0.06300366300366299,-0.059935897435897424,-0.003067765567765564,0.01,True,64,/Users/ananyapathak/Desktop/oss/esmc.cpp/results/downstream_cache/300m/q4_k_m_cpu,
+ProteinGym,DMS substitutions,A0A1I9GEU1_NEIME_Kennouche_2019,300m,q4_k_s,cpu,spearman,-0.06962155728833004,-0.059935897435897424,-0.009685659852432617,0.01,True,64,/Users/ananyapathak/Desktop/oss/esmc.cpp/results/downstream_cache/300m/q4_k_s_cpu,

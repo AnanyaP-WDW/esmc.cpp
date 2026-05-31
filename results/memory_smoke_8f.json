@@ -1,0 +1,147 @@
+{
+  "manifest": {
+    "backend": "cpu",
+    "benchmark": "memory",
+    "created_at": "2026-05-30T20:02:35+00:00",
+    "git": {
+      "commit": null,
+      "dirty": true,
+      "status_short": [
+        "A  .gitmodules",
+        "A  ggml",
+        "?? .gitignore",
+        "?? CMakeLists.txt",
+        "?? README.md",
+        "?? benchmarks/",
+        "?? examples/",
+        "?? lab_manual.md",
+        "?? perf_roadmap.md",
+        "?? plan.md",
+        "?? results/",
+        "?? src/",
+        "?? tests/",
+        "?? tools/"
+      ]
+    },
+    "host": {
+      "machine": "arm64",
+      "macos": [
+        "ProductName:\t\tmacOS",
+        "ProductVersion:\t\t26.5",
+        "BuildVersion:\t\t25F71"
+      ],
+      "memory_bytes": 17179869184,
+      "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+      "processor": "arm",
+      "python": "3.13.1"
+    },
+    "models": {
+      "q4_k_s": {
+        "exists": true,
+        "path": "models/esmc-300m-Q4_K_S.gguf",
+        "sha256": "02328ea3555903efd911ac668751f19e4121015cf1c6af24e451fb09aee64b3b"
+      }
+    },
+    "reference": {
+      "exists": true,
+      "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/esmc-300m/model.safetensors",
+      "sha256": "0772d8fe64bb25e14fe6f23b80e3c9a7d215d0da3c6cba5bd356d7c0e0bb22cc"
+    },
+    "schema_version": 1,
+    "sequence_set": {
+      "count": 3,
+      "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/sequences_throughput.fasta",
+      "records": [
+        {
+          "length": 45,
+          "name": "short_50",
+          "sha256": "d375c2a540b7eb899ec37edb6034f07bea727d5581db8bf7de9789b377d62ebf"
+        },
+        {
+          "length": 233,
+          "name": "medium_250",
+          "sha256": "7aa0fa159d5eeeb6bdb49a0749a5188f9792789119bd878c5c7d531b857212e0"
+        },
+        {
+          "length": 848,
+          "name": "long_1024_seed",
+          "sha256": "02c37cddcd23d8840148e54024277d4b637ba29d9ef27dc35991fd4cae811aff"
+        }
+      ],
+      "sha256": "542a06e178335e2261de49b8c6892f642f412f2e6ea881c24b23473e0aa557d6"
+    }
+  },
+  "rows": [
+    {
+      "backend": "cpu",
+      "budget_pass": true,
+      "elapsed_s": 0.6735022499924526,
+      "error": null,
+      "implementation": "esmc.cpp",
+      "machine_budget_bytes": 17179869184,
+      "model_file_size_bytes": 239193024,
+      "model_path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf",
+      "model_size": "300m",
+      "notes": "single mean-pooled embed",
+      "peak_rss_bytes": 740491264,
+      "peak_rss_mib": 706.1875,
+      "precision": "q4_k_s",
+      "returncode": 0,
+      "sequence_bucket": "short",
+      "sequence_length": 45,
+      "sequence_name": "short_50",
+      "success": true,
+      "token_count": 47
+    },
+    {
+      "backend": "cpu",
+      "budget_pass": true,
+      "elapsed_s": 1.629563957976643,
+      "error": null,
+      "implementation": "esmc.cpp",
+      "machine_budget_bytes": 17179869184,
+      "model_file_size_bytes": 239193024,
+      "model_path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf",
+      "model_size": "300m",
+      "notes": "single mean-pooled embed",
+      "peak_rss_bytes": 1773846528,
+      "peak_rss_mib": 1691.671875,
+      "precision": "q4_k_s",
+      "returncode": 0,
+      "sequence_bucket": "medium",
+      "sequence_length": 233,
+      "sequence_name": "medium_250",
+      "success": true,
+      "token_count": 235
+    },
+    {
+      "backend": "cpu",
+      "budget_pass": true,
+      "elapsed_s": 7.694612250023056,
+      "error": null,
+      "implementation": "esmc.cpp",
+      "machine_budget_bytes": 17179869184,
+      "model_file_size_bytes": 239193024,
+      "model_path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf",
+      "model_size": "300m",
+      "notes": "single mean-pooled embed",
+      "peak_rss_bytes": 2395340800,
+      "peak_rss_mib": 2284.375,
+      "precision": "q4_k_s",
+      "returncode": 0,
+      "sequence_bucket": "long",
+      "sequence_length": 848,
+      "sequence_name": "long_1024_seed",
+      "success": true,
+      "token_count": 850
+    }
+  ],
+  "summary": {
+    "budget_bytes": 17179869184,
+    "budget_gb": 16.0,
+    "failed_rows": 0,
+    "pytorch_dtype": "f32",
+    "rows": 3,
+    "timer": "/usr/bin/time"
+  }
+}

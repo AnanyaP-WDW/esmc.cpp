@@ -1,0 +1,80 @@
+esmc.cpp — Licensing
+====================
+
+esmc.cpp ports the EvolutionaryScale ESM Cambrian (ESM-C) 300M model to a C/C++
+inference runtime built on ggml / llama.cpp. Three separate license regimes apply
+to different parts of this project. Read all three.
+
+
+1. ESM-C 300M model weights and their derivatives
+--------------------------------------------------
+The ESM-C 300M Open Model is licensed by EvolutionaryScale, PBC under the
+EvolutionaryScale Cambrian Open License Agreement (a permissive license that
+allows academic and commercial use). The GGUF weight files produced or
+distributed by this project — including every `*.gguf` conversion and any
+quantization of it — are Derivative Works of that model and are governed by the
+same agreement:
+
+    EvolutionaryScale Cambrian Open License Agreement
+    https://www.evolutionaryscale.ai/policies/cambrian-open-license-agreement
+
+Use of the model is additionally subject to the EvolutionaryScale Acceptable Use
+Policy:
+
+    https://www.evolutionaryscale.ai/policies/acceptable-use-policy
+
+Per Section 4 (Redistribution) of that Agreement, anyone who redistributes the
+model or a Derivative Work must, among other conditions:
+
+  * give recipients a copy of the Agreement (linked above);
+  * cause any modified files to carry prominent notices stating they changed
+    them (the GGUF files here are format conversions of the original
+    checkpoint — see NOTICE);
+  * prominently display "Built with ESM" wherever the model is made available;
+  * retain all copyright, patent, trademark, and attribution notices; and
+  * include the attribution text from the NOTICE file in this repository.
+
+The canonical agreement linked above is the controlling text; the summary above
+is for convenience only.
+
+
+2. esmc.cpp original source code (this repository's own code)
+-------------------------------------------------------------
+The original code written for this project is released under the MIT License
+(reproduced below). This covers the C/C++ runtime under `src/` and `examples/`,
+the Python converter / quantizer / benchmark harnesses under `tools/`, `tests/`,
+and `benchmarks/`, and the project documentation. This runtime is separable from
+and merely binds by name to the model interfaces, so it is not itself a
+Derivative Work of the model; however, the MIT grant below does NOT relax any
+obligation that the Cambrian Open License Agreement (Section 1) places on the
+ESM-C model weights or their GGUF derivatives.
+
+
+3. ggml / llama.cpp (the `ggml/` submodule)
+-------------------------------------------
+The `ggml/` directory is the upstream llama.cpp project, used as a git submodule,
+and remains under its own MIT License. See `ggml/LICENSE`.
+
+
+===============================================================================
+MIT License (esmc.cpp original code, item 2 above)
+
+Copyright (c) 2026 esmc.cpp contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

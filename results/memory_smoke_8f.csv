@@ -1,0 +1,4 @@
+model_size,precision,implementation,backend,sequence_name,sequence_bucket,sequence_length,token_count,model_path,model_file_size_bytes,peak_rss_bytes,peak_rss_mib,machine_budget_bytes,budget_pass,success,returncode,elapsed_s,notes,error
+300m,q4_k_s,esmc.cpp,cpu,short_50,short,45,47,/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf,239193024,740491264,706.1875,17179869184,True,True,0,0.6735022499924526,single mean-pooled embed,
+300m,q4_k_s,esmc.cpp,cpu,medium_250,medium,233,235,/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf,239193024,1773846528,1691.671875,17179869184,True,True,0,1.629563957976643,single mean-pooled embed,
+300m,q4_k_s,esmc.cpp,cpu,long_1024_seed,long,848,850,/Users/ananyapathak/Desktop/oss/esmc.cpp/models/esmc-300m-Q4_K_S.gguf,239193024,2395340800,2284.375,17179869184,True,True,0,7.694612250023056,single mean-pooled embed,

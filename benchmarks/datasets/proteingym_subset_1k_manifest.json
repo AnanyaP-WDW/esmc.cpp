@@ -1,0 +1,34 @@
+{
+  "archive": {
+    "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/downloads/DMS_ProteinGym_substitutions.zip",
+    "sha256": "3a83766254ac9ac9984ec25cb73c6e010ea4418f5e35f143933e6b6e6473b921"
+  },
+  "assays": [
+    {
+      "assay": "TCRG1_MOUSE_Tsuboyama_2023_1E0L",
+      "max_sequence_length": 37,
+      "output": "benchmarks/proteingym_subset_1k/TCRG1_MOUSE_Tsuboyama_2023_1E0L.csv",
+      "rows": 1000,
+      "sha256": "903a7e16fcaea384dd722db8f0a04eb12909ddc96057e6814668712ad261da09",
+      "source_member": "DMS_ProteinGym_substitutions/TCRG1_MOUSE_Tsuboyama_2023_1E0L.csv",
+      "target_sequence_length": 37,
+      "target_sequence_sha256": "e3ec13d0d7ff066ef89bd037ff6ad5e5b5afb226d4a954d78710461bc66d822d"
+    }
+  ],
+  "license_note": "ProteinGym dataset terms are inherited from the upstream benchmark.",
+  "selection": {
+    "alphabet": "20 standard amino acids only",
+    "max_assays": 1,
+    "max_rows_per_assay": 64,
+    "max_sequence_length": 512,
+    "min_rows_per_assay": 8,
+    "prefer_short_length": true,
+    "requested_assays": [],
+    "selection_mode": "single-assay",
+    "target_total_rows": 1000,
+    "total_variants": 1000
+  },
+  "source": "ProteinGym DMS substitution benchmark",
+  "source_url": "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_ProteinGym_substitutions.zip",
+  "version": "v1.3"
+}

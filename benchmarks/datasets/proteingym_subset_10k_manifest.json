@@ -1,0 +1,124 @@
+{
+  "archive": {
+    "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/downloads/DMS_ProteinGym_substitutions.zip",
+    "sha256": "3a83766254ac9ac9984ec25cb73c6e010ea4418f5e35f143933e6b6e6473b921"
+  },
+  "assays": [
+    {
+      "assay": "TCRG1_MOUSE_Tsuboyama_2023_1E0L",
+      "max_sequence_length": 37,
+      "output": "benchmarks/proteingym_subset_10k/TCRG1_MOUSE_Tsuboyama_2023_1E0L.csv",
+      "rows": 1000,
+      "sha256": "903a7e16fcaea384dd722db8f0a04eb12909ddc96057e6814668712ad261da09",
+      "source_member": "DMS_ProteinGym_substitutions/TCRG1_MOUSE_Tsuboyama_2023_1E0L.csv",
+      "target_sequence_length": 37,
+      "target_sequence_sha256": "e3ec13d0d7ff066ef89bd037ff6ad5e5b5afb226d4a954d78710461bc66d822d"
+    },
+    {
+      "assay": "YNZC_BACSU_Tsuboyama_2023_2JVD",
+      "max_sequence_length": 39,
+      "output": "benchmarks/proteingym_subset_10k/YNZC_BACSU_Tsuboyama_2023_2JVD.csv",
+      "rows": 1000,
+      "sha256": "f1f20a07ca0f5e15cf8549d90feec6f3b0dacabcb99e6e72dd22471012d468e2",
+      "source_member": "DMS_ProteinGym_substitutions/YNZC_BACSU_Tsuboyama_2023_2JVD.csv",
+      "target_sequence_length": 39,
+      "target_sequence_sha256": "6d17003a58eaf6bf74df7eb050a0a13a1a755cf9ee007267fbd31cacf7794afc"
+    },
+    {
+      "assay": "MAFG_MOUSE_Tsuboyama_2023_1K1V",
+      "max_sequence_length": 41,
+      "output": "benchmarks/proteingym_subset_10k/MAFG_MOUSE_Tsuboyama_2023_1K1V.csv",
+      "rows": 1000,
+      "sha256": "49f0c3c664cdae446a890f2c7cc32b39ee597da08353b84b8ca4c07a04027372",
+      "source_member": "DMS_ProteinGym_substitutions/MAFG_MOUSE_Tsuboyama_2023_1K1V.csv",
+      "target_sequence_length": 41,
+      "target_sequence_sha256": "da41ceaba9f1c4fd6d9da3e8e6f439c9c2eabbd1b6a5fd2d6e847863419cc28c"
+    },
+    {
+      "assay": "THO1_YEAST_Tsuboyama_2023_2WQG",
+      "max_sequence_length": 41,
+      "output": "benchmarks/proteingym_subset_10k/THO1_YEAST_Tsuboyama_2023_2WQG.csv",
+      "rows": 1000,
+      "sha256": "3a83e54ef9f74b4284ce6b312e62029326e49a982c6bc8463c8cdfb566d23ac2",
+      "source_member": "DMS_ProteinGym_substitutions/THO1_YEAST_Tsuboyama_2023_2WQG.csv",
+      "target_sequence_length": 41,
+      "target_sequence_sha256": "6b772d193945b6f46cb6fed83b7e9d68765a645d1f8e25672ad43417d4eed0df"
+    },
+    {
+      "assay": "ODP2_GEOSE_Tsuboyama_2023_1W4G",
+      "max_sequence_length": 44,
+      "output": "benchmarks/proteingym_subset_10k/ODP2_GEOSE_Tsuboyama_2023_1W4G.csv",
+      "rows": 1000,
+      "sha256": "4628438a94f90ae843ffd1af8953a81255df4745db6e5124f2ff4125dabcbe7e",
+      "source_member": "DMS_ProteinGym_substitutions/ODP2_GEOSE_Tsuboyama_2023_1W4G.csv",
+      "target_sequence_length": 44,
+      "target_sequence_sha256": "186bf44bc89c64ff3960721d388a880973acbfe51ac75f71be7a057682185b09"
+    },
+    {
+      "assay": "RD23A_HUMAN_Tsuboyama_2023_1IFY",
+      "max_sequence_length": 44,
+      "output": "benchmarks/proteingym_subset_10k/RD23A_HUMAN_Tsuboyama_2023_1IFY.csv",
+      "rows": 1000,
+      "sha256": "3152614c66fe1254e6530b9d32745eb6e9f753ab57ba728e8196ecbce4fad7bb",
+      "source_member": "DMS_ProteinGym_substitutions/RD23A_HUMAN_Tsuboyama_2023_1IFY.csv",
+      "target_sequence_length": 44,
+      "target_sequence_sha256": "563296d6558ac2ef2c01fa9956b485a1c16ed10d686668d95d556fe332243691"
+    },
+    {
+      "assay": "SDA_BACSU_Tsuboyama_2023_1PV0",
+      "max_sequence_length": 44,
+      "output": "benchmarks/proteingym_subset_10k/SDA_BACSU_Tsuboyama_2023_1PV0.csv",
+      "rows": 1000,
+      "sha256": "2972bb60382cce4e74315a604a958f90c2281521faf66dd09e483404bbc19880",
+      "source_member": "DMS_ProteinGym_substitutions/SDA_BACSU_Tsuboyama_2023_1PV0.csv",
+      "target_sequence_length": 44,
+      "target_sequence_sha256": "9b8a19a58ca0ba318b0c339a4c794cb3a19356dbf1bca9d8f81b3a1df7cadbef"
+    },
+    {
+      "assay": "AMFR_HUMAN_Tsuboyama_2023_4G3O",
+      "max_sequence_length": 47,
+      "output": "benchmarks/proteingym_subset_10k/AMFR_HUMAN_Tsuboyama_2023_4G3O.csv",
+      "rows": 1000,
+      "sha256": "7916e93fbaccae4b8561c4eefb8438924dcdfe7d661f7bc259707b0f669d3f64",
+      "source_member": "DMS_ProteinGym_substitutions/AMFR_HUMAN_Tsuboyama_2023_4G3O.csv",
+      "target_sequence_length": 47,
+      "target_sequence_sha256": "ba8bd075361c9c8ffd9036a5afc650f92bfe2bc4f373e67d6c3c0927e49159d6"
+    },
+    {
+      "assay": "SR43C_ARATH_Tsuboyama_2023_2N88",
+      "max_sequence_length": 48,
+      "output": "benchmarks/proteingym_subset_10k/SR43C_ARATH_Tsuboyama_2023_2N88.csv",
+      "rows": 1000,
+      "sha256": "c9e8a8df41e36306271717147677f8a5fa9eece56a848a1dc33eb0513011b68f",
+      "source_member": "DMS_ProteinGym_substitutions/SR43C_ARATH_Tsuboyama_2023_2N88.csv",
+      "target_sequence_length": 48,
+      "target_sequence_sha256": "81346251006cd7699ec780db8c419274f1044e32371600068db7abd2a89b0e53"
+    },
+    {
+      "assay": "CBX4_HUMAN_Tsuboyama_2023_2K28",
+      "max_sequence_length": 50,
+      "output": "benchmarks/proteingym_subset_10k/CBX4_HUMAN_Tsuboyama_2023_2K28.csv",
+      "rows": 1000,
+      "sha256": "54e207195bea4d07badcf98d0ac730284be346e83f8d20fcb259431e0942a65f",
+      "source_member": "DMS_ProteinGym_substitutions/CBX4_HUMAN_Tsuboyama_2023_2K28.csv",
+      "target_sequence_length": 50,
+      "target_sequence_sha256": "98af4350fbb819c7ff347e0a3d2cef6e324feb76ec19f8a98231519888ff80f2"
+    }
+  ],
+  "license_note": "ProteinGym dataset terms are inherited from the upstream benchmark.",
+  "selection": {
+    "alphabet": "20 standard amino acids only",
+    "max_assays": 10,
+    "max_rows_per_assay": 1000,
+    "max_sequence_length": 512,
+    "min_rows_per_assay": 1000,
+    "prefer_short_length": true,
+    "requested_assays": [],
+    "selection_mode": "multi-assay",
+    "target_total_rows": null,
+    "total_variants": 10000
+  },
+  "source": "ProteinGym DMS substitution benchmark",
+  "source_url": "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_ProteinGym_substitutions.zip",
+  "version": "v1.3"
+}

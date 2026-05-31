@@ -1,0 +1,36 @@
+{
+  "model_size": "300m",
+  "sequences": "benchmarks/sequences_throughput.fasta",
+  "pytorch_weights": "esmc-300m/model.safetensors",
+  "pytorch_dtype": "f32",
+  "cpp_embed": "build/esmc-embed",
+  "budget_gb": 16.0,
+  "backends": [
+    "cpu",
+    "metal",
+    "pytorch_cpu",
+    "pytorch_mps"
+  ],
+  "models": [
+    {
+      "precision": "f32",
+      "path": "models/esmc-300m-f32.gguf"
+    },
+    {
+      "precision": "f16",
+      "path": "models/esmc-300m-f16.gguf"
+    },
+    {
+      "precision": "q8_0",
+      "path": "models/esmc-300m-Q8_0.gguf"
+    },
+    {
+      "precision": "q4_k_m",
+      "path": "models/esmc-300m-Q4_K_M.gguf"
+    },
+    {
+      "precision": "q4_k_s",
+      "path": "models/esmc-300m-Q4_K_S.gguf"
+    }
+  ]
+}

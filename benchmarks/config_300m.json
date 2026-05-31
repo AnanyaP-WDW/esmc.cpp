@@ -1,0 +1,25 @@
+{
+  "model_size": "300m",
+  "backend": "cpu",
+  "sequences": "benchmarks/sequences_correctness.fasta",
+  "reference": "tests/reference_embeddings.npz",
+  "output_prefix": "results/correctness_300m",
+  "models": [
+    {
+      "precision": "f16",
+      "path": "models/esmc-300m-f16.gguf"
+    },
+    {
+      "precision": "q8_0",
+      "path": "models/esmc-300m-Q8_0.gguf"
+    },
+    {
+      "precision": "q4_k_m",
+      "path": "models/esmc-300m-Q4_K_M.gguf"
+    },
+    {
+      "precision": "q4_k_s",
+      "path": "models/esmc-300m-Q4_K_S.gguf"
+    }
+  ]
+}

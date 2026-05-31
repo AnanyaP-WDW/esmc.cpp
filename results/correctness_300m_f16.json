@@ -1,0 +1,157 @@
+{
+  "manifest": {
+    "backend": "cpu",
+    "benchmark": "correctness",
+    "created_at": "2026-05-28T14:32:28+00:00",
+    "git": {
+      "commit": null,
+      "dirty": true,
+      "status_short": [
+        "A  .gitmodules",
+        "A  ggml",
+        "?? .gitignore",
+        "?? CMakeLists.txt",
+        "?? README.md",
+        "?? benchmarks/",
+        "?? examples/",
+        "?? lab_manual.md",
+        "?? plan.md",
+        "?? results/",
+        "?? src/",
+        "?? tests/",
+        "?? tools/"
+      ]
+    },
+    "host": {
+      "machine": "arm64",
+      "macos": [
+        "ProductName:\t\tmacOS",
+        "ProductVersion:\t\t26.5",
+        "BuildVersion:\t\t25F71"
+      ],
+      "memory_bytes": 17179869184,
+      "platform": "macOS-26.5-arm64-arm-64bit-Mach-O",
+      "processor": "arm",
+      "python": "3.13.1"
+    },
+    "models": {
+      "f16": {
+        "exists": true,
+        "path": "models/esmc-300m-f16.gguf",
+        "sha256": "7c37c24e156920bda289e0716ba90aced235cb8603b34813421e69b8d9ca2bd1"
+      }
+    },
+    "reference": {
+      "exists": true,
+      "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/tests/reference_embeddings.npz",
+      "sha256": "18e9b108e6056443b01d0357dbb84591b06d2715509937bea2548edc2db18867"
+    },
+    "schema_version": 1,
+    "sequence_set": {
+      "count": 3,
+      "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/sequences_correctness.fasta",
+      "records": [
+        {
+          "length": 9,
+          "name": "short",
+          "sha256": "c729ebc224388368ab8c8df88487ef137ad8bd5097651cf67c37bda5622c9f9a"
+        },
+        {
+          "length": 51,
+          "name": "medium",
+          "sha256": "932d0841f4b170c996cdb326eaa7e499f3cf3f10c2772425ca1daa320b842e44"
+        },
+        {
+          "length": 265,
+          "name": "long",
+          "sha256": "8bd17a63450f31a7a7e998996fc7e3bfcaa05992465381e657a6b8ceca032874"
+        }
+      ],
+      "sha256": "83b2c4a079b8a9bd0a3dd78b82def7c108780fb58172c7671afcf0d43477a70b"
+    }
+  },
+  "rows": [
+    {
+      "backend": "cpu",
+      "error": null,
+      "mean_cosine": 0.9999731779098511,
+      "mean_cosine_threshold": 0.999,
+      "mean_pool_l2": 0.0035402877256274223,
+      "mean_pool_l2_threshold": 0.01,
+      "min_cosine": 0.999925434589386,
+      "min_cosine_threshold": 0.99,
+      "model_size": "300m",
+      "output_shape": [
+        9,
+        960
+      ],
+      "passed": true,
+      "precision": "f16",
+      "reference_shape": [
+        9,
+        960
+      ],
+      "sequence_length": 9,
+      "sequence_name": "short"
+    },
+    {
+      "backend": "cpu",
+      "error": null,
+      "mean_cosine": 0.9999870657920837,
+      "mean_cosine_threshold": 0.999,
+      "mean_pool_l2": 0.0012282984098419547,
+      "mean_pool_l2_threshold": 0.01,
+      "min_cosine": 0.9999481439590454,
+      "min_cosine_threshold": 0.99,
+      "model_size": "300m",
+      "output_shape": [
+        51,
+        960
+      ],
+      "passed": true,
+      "precision": "f16",
+      "reference_shape": [
+        51,
+        960
+      ],
+      "sequence_length": 51,
+      "sequence_name": "medium"
+    },
+    {
+      "backend": "cpu",
+      "error": null,
+      "mean_cosine": 0.9999882578849792,
+      "mean_cosine_threshold": 0.999,
+      "mean_pool_l2": 0.000642990053165704,
+      "mean_pool_l2_threshold": 0.01,
+      "min_cosine": 0.9999719858169556,
+      "min_cosine_threshold": 0.99,
+      "model_size": "300m",
+      "output_shape": [
+        265,
+        960
+      ],
+      "passed": true,
+      "precision": "f16",
+      "reference_shape": [
+        265,
+        960
+      ],
+      "sequence_length": 265,
+      "sequence_name": "long"
+    }
+  ],
+  "summary": {
+    "allow_missing_models": false,
+    "failed": 0,
+    "passed": 3,
+    "rows": 3
+  },
+  "thresholds_by_precision": {
+    "f16": {
+      "mean_cosine": 0.999,
+      "mean_pool_l2": 0.01,
+      "min_cosine": 0.99
+    }
+  }
+}

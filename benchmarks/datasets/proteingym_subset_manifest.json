@@ -1,0 +1,30 @@
+{
+  "archive": {
+    "path": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/downloads/DMS_ProteinGym_substitutions.zip",
+    "sha256": "3a83766254ac9ac9984ec25cb73c6e010ea4418f5e35f143933e6b6e6473b921"
+  },
+  "assays": [
+    {
+      "assay": "A0A1I9GEU1_NEIME_Kennouche_2019",
+      "max_sequence_length": 161,
+      "output": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/proteingym_subset/A0A1I9GEU1_NEIME_Kennouche_2019.csv",
+      "rows": 64,
+      "sha256": "7b109f88348de2e68629c281ea9a057ca38b202484790eee9dca1861e709784c",
+      "source_member": "DMS_ProteinGym_substitutions/A0A1I9GEU1_NEIME_Kennouche_2019.csv",
+      "target_sequence_length": 161,
+      "target_sequence_sha256": "1ee1a17e8cd3d6efc8c92229e6a027c48fb9e79636117d0b3c0f8db703c723af"
+    }
+  ],
+  "license_note": "ProteinGym dataset terms are inherited from the upstream benchmark.",
+  "selection": {
+    "alphabet": "20 standard amino acids only",
+    "max_assays": 1,
+    "max_rows_per_assay": 64,
+    "max_sequence_length": 512,
+    "min_rows_per_assay": 8,
+    "requested_assays": []
+  },
+  "source": "ProteinGym DMS substitution benchmark",
+  "source_url": "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_ProteinGym_substitutions.zip",
+  "version": "v1.3"
+}

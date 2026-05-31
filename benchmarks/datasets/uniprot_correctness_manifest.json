@@ -1,0 +1,546 @@
+{
+  "api": "https://rest.uniprot.org/uniprotkb/stream",
+  "buckets": [
+    {
+      "bucket": "small",
+      "count": 34,
+      "max_len": 50,
+      "min_len": 10,
+      "query": "(reviewed:true) AND (length:[10 TO 50]) AND (organism_id:9606)",
+      "records": [
+        {
+          "accession": "A0A075B6S0",
+          "length": 16,
+          "name": "small_A0A075B6S0"
+        },
+        {
+          "accession": "A0A075B6Y3",
+          "length": 20,
+          "name": "small_A0A075B6Y3"
+        },
+        {
+          "accession": "A0A075B6Y9",
+          "length": 20,
+          "name": "small_A0A075B6Y9"
+        },
+        {
+          "accession": "A0A075B700",
+          "length": 18,
+          "name": "small_A0A075B700"
+        },
+        {
+          "accession": "A0A075B706",
+          "length": 16,
+          "name": "small_A0A075B706"
+        },
+        {
+          "accession": "A0A0A0MT70",
+          "length": 17,
+          "name": "small_A0A0A0MT70"
+        },
+        {
+          "accession": "A0A0A0MT76",
+          "length": 42,
+          "name": "small_A0A0A0MT76"
+        },
+        {
+          "accession": "A0A0A0MT78",
+          "length": 15,
+          "name": "small_A0A0A0MT78"
+        },
+        {
+          "accession": "A0A0A0MT87",
+          "length": 16,
+          "name": "small_A0A0A0MT87"
+        },
+        {
+          "accession": "A0A0A0MT89",
+          "length": 12,
+          "name": "small_A0A0A0MT89"
+        },
+        {
+          "accession": "A0A0A0MT94",
+          "length": 16,
+          "name": "small_A0A0A0MT94"
+        },
+        {
+          "accession": "A0A0A0MTA4",
+          "length": 15,
+          "name": "small_A0A0A0MTA4"
+        },
+        {
+          "accession": "A0A0A0MTA7",
+          "length": 16,
+          "name": "small_A0A0A0MTA7"
+        },
+        {
+          "accession": "A0A0B4J200",
+          "length": 16,
+          "name": "small_A0A0B4J200"
+        },
+        {
+          "accession": "A0A0C4DH62",
+          "length": 17,
+          "name": "small_A0A0C4DH62"
+        },
+        {
+          "accession": "A0A0C5B5G6",
+          "length": 16,
+          "name": "small_A0A0C5B5G6"
+        },
+        {
+          "accession": "A0A0J9YWP8",
+          "length": 16,
+          "name": "small_A0A0J9YWP8"
+        },
+        {
+          "accession": "A0A0J9YWX3",
+          "length": 17,
+          "name": "small_A0A0J9YWX3"
+        },
+        {
+          "accession": "A0A0J9YX06",
+          "length": 15,
+          "name": "small_A0A0J9YX06"
+        },
+        {
+          "accession": "A0A0J9YXA8",
+          "length": 15,
+          "name": "small_A0A0J9YXA8"
+        },
+        {
+          "accession": "A0A0J9YXG5",
+          "length": 16,
+          "name": "small_A0A0J9YXG5"
+        },
+        {
+          "accession": "A0A0J9YXM7",
+          "length": 16,
+          "name": "small_A0A0J9YXM7"
+        },
+        {
+          "accession": "A0A1B0GTB2",
+          "length": 48,
+          "name": "small_A0A1B0GTB2"
+        },
+        {
+          "accession": "A0A1B0GWH6",
+          "length": 25,
+          "name": "small_A0A1B0GWH6"
+        },
+        {
+          "accession": "A0A3G1DIU6",
+          "length": 26,
+          "name": "small_A0A3G1DIU6"
+        },
+        {
+          "accession": "A0A3G1DJK2",
+          "length": 26,
+          "name": "small_A0A3G1DJK2"
+        },
+        {
+          "accession": "A0A3G1DJL1",
+          "length": 24,
+          "name": "small_A0A3G1DJL1"
+        },
+        {
+          "accession": "A0A3G1DJL7",
+          "length": 24,
+          "name": "small_A0A3G1DJL7"
+        },
+        {
+          "accession": "A0A3G1DJN1",
+          "length": 20,
+          "name": "small_A0A3G1DJN1"
+        },
+        {
+          "accession": "A0A3G1DJQ2",
+          "length": 38,
+          "name": "small_A0A3G1DJQ2"
+        },
+        {
+          "accession": "A1L3X4",
+          "length": 49,
+          "name": "small_A1L3X4"
+        },
+        {
+          "accession": "C0HLU2",
+          "length": 46,
+          "name": "small_C0HLU2"
+        },
+        {
+          "accession": "C0HLV8",
+          "length": 31,
+          "name": "small_C0HLV8"
+        },
+        {
+          "accession": "C0HM02",
+          "length": 26,
+          "name": "small_C0HM02"
+        }
+      ]
+    },
+    {
+      "bucket": "medium",
+      "count": 33,
+      "max_len": 300,
+      "min_len": 100,
+      "query": "(reviewed:true) AND (length:[100 TO 300]) AND (organism_id:9606)",
+      "records": [
+        {
+          "accession": "A0A024RBG1",
+          "length": 181,
+          "name": "medium_A0A024RBG1"
+        },
+        {
+          "accession": "A0A075B6H7",
+          "length": 116,
+          "name": "medium_A0A075B6H7"
+        },
+        {
+          "accession": "A0A075B6H8",
+          "length": 117,
+          "name": "medium_A0A075B6H8"
+        },
+        {
+          "accession": "A0A075B6H9",
+          "length": 119,
+          "name": "medium_A0A075B6H9"
+        },
+        {
+          "accession": "A0A075B6I0",
+          "length": 122,
+          "name": "medium_A0A075B6I0"
+        },
+        {
+          "accession": "A0A075B6I1",
+          "length": 120,
+          "name": "medium_A0A075B6I1"
+        },
+        {
+          "accession": "A0A075B6I3",
+          "length": 123,
+          "name": "medium_A0A075B6I3"
+        },
+        {
+          "accession": "A0A075B6I4",
+          "length": 117,
+          "name": "medium_A0A075B6I4"
+        },
+        {
+          "accession": "A0A075B6I6",
+          "length": 118,
+          "name": "medium_A0A075B6I6"
+        },
+        {
+          "accession": "A0A075B6I7",
+          "length": 105,
+          "name": "medium_A0A075B6I7"
+        },
+        {
+          "accession": "A0A075B6I9",
+          "length": 117,
+          "name": "medium_A0A075B6I9"
+        },
+        {
+          "accession": "A0A075B6J1",
+          "length": 123,
+          "name": "medium_A0A075B6J1"
+        },
+        {
+          "accession": "A0A075B6J2",
+          "length": 118,
+          "name": "medium_A0A075B6J2"
+        },
+        {
+          "accession": "A0A075B6J6",
+          "length": 115,
+          "name": "medium_A0A075B6J6"
+        },
+        {
+          "accession": "A0A075B6J9",
+          "length": 118,
+          "name": "medium_A0A075B6J9"
+        },
+        {
+          "accession": "A0A075B6K0",
+          "length": 115,
+          "name": "medium_A0A075B6K0"
+        },
+        {
+          "accession": "A0A075B6K2",
+          "length": 115,
+          "name": "medium_A0A075B6K2"
+        },
+        {
+          "accession": "A0A075B6K4",
+          "length": 115,
+          "name": "medium_A0A075B6K4"
+        },
+        {
+          "accession": "A0A075B6K5",
+          "length": 115,
+          "name": "medium_A0A075B6K5"
+        },
+        {
+          "accession": "A0A075B6K6",
+          "length": 122,
+          "name": "medium_A0A075B6K6"
+        },
+        {
+          "accession": "A0A075B6L2",
+          "length": 119,
+          "name": "medium_A0A075B6L2"
+        },
+        {
+          "accession": "A0A075B6L6",
+          "length": 115,
+          "name": "medium_A0A075B6L6"
+        },
+        {
+          "accession": "A0A075B6N1",
+          "length": 114,
+          "name": "medium_A0A075B6N1"
+        },
+        {
+          "accession": "A0A075B6N2",
+          "length": 111,
+          "name": "medium_A0A075B6N2"
+        },
+        {
+          "accession": "A0A075B6N3",
+          "length": 115,
+          "name": "medium_A0A075B6N3"
+        },
+        {
+          "accession": "A0A075B6N4",
+          "length": 114,
+          "name": "medium_A0A075B6N4"
+        },
+        {
+          "accession": "A0A075B6P5",
+          "length": 120,
+          "name": "medium_A0A075B6P5"
+        },
+        {
+          "accession": "A0A075B6Q5",
+          "length": 118,
+          "name": "medium_A0A075B6Q5"
+        },
+        {
+          "accession": "A0A075B6R0",
+          "length": 118,
+          "name": "medium_A0A075B6R0"
+        },
+        {
+          "accession": "A0A075B6R2",
+          "length": 117,
+          "name": "medium_A0A075B6R2"
+        },
+        {
+          "accession": "A0A075B6R9",
+          "length": 120,
+          "name": "medium_A0A075B6R9"
+        },
+        {
+          "accession": "A0A075B6S2",
+          "length": 120,
+          "name": "medium_A0A075B6S2"
+        },
+        {
+          "accession": "A0A075B6S4",
+          "length": 117,
+          "name": "medium_A0A075B6S4"
+        }
+      ]
+    },
+    {
+      "bucket": "large",
+      "count": 33,
+      "max_len": 1500,
+      "min_len": 500,
+      "query": "(reviewed:true) AND (length:[500 TO 1500]) AND (organism_id:9606)",
+      "records": [
+        {
+          "accession": "A0A087WUV0",
+          "length": 522,
+          "name": "large_A0A087WUV0"
+        },
+        {
+          "accession": "A0A087WVF3",
+          "length": 549,
+          "name": "large_A0A087WVF3"
+        },
+        {
+          "accession": "A0A087WXS9",
+          "length": 549,
+          "name": "large_A0A087WXS9"
+        },
+        {
+          "accession": "A0A087X179",
+          "length": 549,
+          "name": "large_A0A087X179"
+        },
+        {
+          "accession": "A0A087X1C5",
+          "length": 515,
+          "name": "large_A0A087X1C5"
+        },
+        {
+          "accession": "A0A087X1G2",
+          "length": 549,
+          "name": "large_A0A087X1G2"
+        },
+        {
+          "accession": "A0A096LP49",
+          "length": 1063,
+          "name": "large_A0A096LP49"
+        },
+        {
+          "accession": "A0A0A6YYL3",
+          "length": 544,
+          "name": "large_A0A0A6YYL3"
+        },
+        {
+          "accession": "A0A0J9YWL9",
+          "length": 993,
+          "name": "large_A0A0J9YWL9"
+        },
+        {
+          "accession": "A0A0J9YX94",
+          "length": 578,
+          "name": "large_A0A0J9YX94"
+        },
+        {
+          "accession": "A0A0J9YXQ4",
+          "length": 647,
+          "name": "large_A0A0J9YXQ4"
+        },
+        {
+          "accession": "A0A0J9YXV3",
+          "length": 536,
+          "name": "large_A0A0J9YXV3"
+        },
+        {
+          "accession": "A0A0J9YY54",
+          "length": 714,
+          "name": "large_A0A0J9YY54"
+        },
+        {
+          "accession": "A0A0U1RQI7",
+          "length": 1052,
+          "name": "large_A0A0U1RQI7"
+        },
+        {
+          "accession": "A0A1B0GTH6",
+          "length": 734,
+          "name": "large_A0A1B0GTH6"
+        },
+        {
+          "accession": "A0A1B0GTU1",
+          "length": 805,
+          "name": "large_A0A1B0GTU1"
+        },
+        {
+          "accession": "A0A1B0GTW7",
+          "length": 788,
+          "name": "large_A0A1B0GTW7"
+        },
+        {
+          "accession": "A0A1B0GUU1",
+          "length": 675,
+          "name": "large_A0A1B0GUU1"
+        },
+        {
+          "accession": "A0A1B0GUW6",
+          "length": 1196,
+          "name": "large_A0A1B0GUW6"
+        },
+        {
+          "accession": "A0A1B0GV03",
+          "length": 622,
+          "name": "large_A0A1B0GV03"
+        },
+        {
+          "accession": "A0A1B0GV85",
+          "length": 526,
+          "name": "large_A0A1B0GV85"
+        },
+        {
+          "accession": "A0A1B0GVH7",
+          "length": 501,
+          "name": "large_A0A1B0GVH7"
+        },
+        {
+          "accession": "A0A1B0GWI6",
+          "length": 518,
+          "name": "large_A0A1B0GWI6"
+        },
+        {
+          "accession": "A0A1W2PPD8",
+          "length": 638,
+          "name": "large_A0A1W2PPD8"
+        },
+        {
+          "accession": "A0AUZ9",
+          "length": 987,
+          "name": "large_A0AUZ9"
+        },
+        {
+          "accession": "A0AV02",
+          "length": 714,
+          "name": "large_A0AV02"
+        },
+        {
+          "accession": "A0AV96",
+          "length": 593,
+          "name": "large_A0AV96"
+        },
+        {
+          "accession": "A0AVF1",
+          "length": 554,
+          "name": "large_A0AVF1"
+        },
+        {
+          "accession": "A0AVK6",
+          "length": 867,
+          "name": "large_A0AVK6"
+        },
+        {
+          "accession": "A0AVT1",
+          "length": 1052,
+          "name": "large_A0AVT1"
+        },
+        {
+          "accession": "A0FGR8",
+          "length": 921,
+          "name": "large_A0FGR8"
+        },
+        {
+          "accession": "A0FGR9",
+          "length": 886,
+          "name": "large_A0FGR9"
+        },
+        {
+          "accession": "A0JNW5",
+          "length": 1464,
+          "name": "large_A0JNW5"
+        }
+      ]
+    }
+  ],
+  "license": "CC BY 4.0",
+  "output": {
+    "fasta": "/Users/ananyapathak/Desktop/oss/esmc.cpp/benchmarks/sequences_correctness.fasta",
+    "sha256": "5de9502ede1d8b498675b2736508544cce032cfbd436752ff04ee1ef5980ff1a"
+  },
+  "selection": {
+    "alphabet": "20 standard amino acids only",
+    "organism": "Homo sapiens (9606)",
+    "reviewed_only": true,
+    "sort": "accession asc"
+  },
+  "source": "UniProt Swiss-Prot",
+  "source_url": "https://www.uniprot.org/",
+  "total_sequences": 100
+}

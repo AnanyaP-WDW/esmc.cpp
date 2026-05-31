@@ -1,0 +1,4 @@
+model_size,precision,backend,sequence_name,sequence_length,reference_shape,output_shape,mean_cosine,min_cosine,mean_pool_l2,mean_cosine_threshold,min_cosine_threshold,mean_pool_l2_threshold,passed,error
+300m,f16,cpu,short,9,"[9, 960]","[9, 960]",0.9999731779098511,0.999925434589386,0.0035402877256274223,0.999,0.99,0.01,True,
+300m,f16,cpu,medium,51,"[51, 960]","[51, 960]",0.9999870657920837,0.9999481439590454,0.0012282984098419547,0.999,0.99,0.01,True,
+300m,f16,cpu,long,265,"[265, 960]","[265, 960]",0.9999882578849792,0.9999719858169556,0.000642990053165704,0.999,0.99,0.01,True,

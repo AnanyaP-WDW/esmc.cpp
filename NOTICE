@@ -1,0 +1,28 @@
+esmc.cpp — NOTICE
+=================
+
+Built with ESM.
+
+The ESMC 300M Model is licensed under the EvolutionaryScale Cambrian Open License
+Agreement.
+Copyright (c) EvolutionaryScale, PBC. All rights reserved.
+https://www.evolutionaryscale.ai/policies/cambrian-open-license-agreement
+
+The GGUF weight files produced or distributed by this project are Derivative
+Works of the ESM-C 300M Open Model:
+
+    https://huggingface.co/EvolutionaryScale/esmc-300m-2024-12
+
+Modification notice: these files were converted from the original safetensors
+checkpoint into the GGUF format (and, for the quantized variants, block-quantized
+with ggml). The model architecture and trained weight values are otherwise
+unchanged from the upstream release.
+
+Use of the model is subject to the EvolutionaryScale Acceptable Use Policy:
+
+    https://www.evolutionaryscale.ai/policies/acceptable-use-policy
+
+-------------------------------------------------------------------------------
+This project also bundles ggml / llama.cpp (the `ggml/` directory),
+Copyright (c) 2023-2026 The ggml authors, under the MIT License (see
+`ggml/LICENSE`).
