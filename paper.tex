@@ -23,6 +23,13 @@
 \usepackage{graphicx}       % figures
 \usepackage{amsmath}        % aligned display math
 
+% Artifact links contain identifying usernames and would break double-blind
+% anonymity. Keep this false for the anonymized submission build; set it to true
+% for the non-anonymized preprint/camera-ready build (alongside the
+% \usepackage[preprint]{caisc_2026} or [final] option) to reveal the URLs.
+\newif\ifshowartifacts
+\showartifactstrue
+
 \title{esmc.cpp: A Zero-Dependency, Metal-Accelerated C/C++ Runtime for ESM Cambrian Protein Embeddings}
 
 % Anonymized submission: author block is hidden by the style file in the
@@ -296,6 +303,21 @@ Acknowledgments are omitted in the anonymized submission and will be added to th
 \section{Reproduction and Tensor Naming}
 \label{app:repro}
 
+\paragraph{Code and data availability.}
+\ifshowartifacts
+The complete runtime, GGUF converter, quantizer, and benchmark harnesses are
+open source at \url{https://github.com/AnanyaP-WDW/esmc.cpp}. The pre-converted
+GGUF model files (F32/F16/Q8\_0/Q4\_K\_M/Q4\_K\_S), together with a model card
+and the benchmark summary, are published at
+\url{https://huggingface.co/AnanyaPathak/esmc-300m-gguf}.
+\else
+The complete runtime, GGUF converter, quantizer, and benchmark harnesses are
+released as open source, and the pre-converted GGUF model files are published on
+the HuggingFace Hub with a model card and benchmark summary. The repository and
+model URLs are withheld here to preserve anonymity and are provided in the
+anonymized supplementary material.
+\fi
+
 \paragraph{End-to-end reproduction (300M).}
 \begin{verbatim}
 # Environment + weights (torch is needed for the PyTorch reference/baselines)
@@ -433,7 +455,7 @@ Global tensors are \texttt{token\_embd.weight}, \texttt{output\_norm.weight}, an
 \item {\bf Open access to data and code}
     \item[] Question: Does the paper provide open access to the data and code, with sufficient instructions to faithfully reproduce the main experimental results, as described in supplemental material?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The runtime, converter, quantizer, and benchmark harnesses are released with the project, and the benchmark sequences are derived from public Swiss-Prot and ProteinGym data with provenance manifests; the model weights are publicly available ESM-C 300M checkpoints. (Anonymized at submission time.)
+    \item[] Justification: The runtime, converter, quantizer, and benchmark harnesses are released with the project, and the benchmark sequences are derived from public Swiss-Prot and ProteinGym data with provenance manifests; the model weights are publicly available ESM-C 300M checkpoints. \ifshowartifacts Code: \url{https://github.com/AnanyaP-WDW/esmc.cpp}; pre-converted GGUF models and model card: \url{https://huggingface.co/AnanyaPathak/esmc-300m-gguf}. \else (Repository and model URLs anonymized at submission time; provided in the anonymized supplement.)\fi
 
 \item {\bf Experimental setting/details}
     \item[] Question: Does the paper specify all the training and test details (e.g., data splits, hyperparameters, how they were chosen, type of optimizer, etc.) necessary to understand the results?
