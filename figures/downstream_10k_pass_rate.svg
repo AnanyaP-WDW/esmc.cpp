@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="650" viewBox="0 0 1400 650">
+<rect x="0" y="0" width="100%" height="100%" fill="white"/>
+<text x="700.0" y="32" text-anchor="middle" font-size="22" font-family="Arial">Downstream 10k pass rate by precision (M8D)</text>
+<line x1="90" y1="70" x2="90" y2="480" stroke="#333"/>
+<line x1="90" y1="480" x2="1380" y2="480" stroke="#333"/>
+<text x="20" y="275.0" transform="rotate(-90 20,275.0)" font-size="14" font-family="Arial">pass rate</text>
+<line x1="85" y1="480.0" x2="90" y2="480.0" stroke="#666"/>
+<text x="82" y="484.0" text-anchor="end" font-size="11" font-family="Arial">0.00</text>
+<line x1="85" y1="398.0" x2="90" y2="398.0" stroke="#666"/>
+<text x="82" y="402.0" text-anchor="end" font-size="11" font-family="Arial">0.22</text>
+<line x1="90" y1="398.0" x2="1380" y2="398.0" stroke="#eee"/>
+<line x1="85" y1="316.0" x2="90" y2="316.0" stroke="#666"/>
+<text x="82" y="320.0" text-anchor="end" font-size="11" font-family="Arial">0.44</text>
+<line x1="90" y1="316.0" x2="1380" y2="316.0" stroke="#eee"/>
+<line x1="85" y1="234.0" x2="90" y2="234.0" stroke="#666"/>
+<text x="82" y="238.0" text-anchor="end" font-size="11" font-family="Arial">0.66</text>
+<line x1="90" y1="234.0" x2="1380" y2="234.0" stroke="#eee"/>
+<line x1="85" y1="152.0" x2="90" y2="152.0" stroke="#666"/>
+<text x="82" y="156.0" text-anchor="end" font-size="11" font-family="Arial">0.88</text>
+<line x1="90" y1="152.0" x2="1380" y2="152.0" stroke="#eee"/>
+<line x1="85" y1="70.0" x2="90" y2="70.0" stroke="#666"/>
+<text x="82" y="74.0" text-anchor="end" font-size="11" font-family="Arial">1.10</text>
+<line x1="90" y1="70.0" x2="1380" y2="70.0" stroke="#eee"/>
+<rect x="136.1" y="107.3" width="39.2" height="372.7" fill="#4e79a7"/>
+<rect x="182.1" y="107.3" width="39.2" height="372.7" fill="#f28e2b"/>
+<rect x="228.2" y="107.3" width="39.2" height="372.7" fill="#e15759"/>
+<rect x="274.3" y="107.3" width="39.2" height="372.7" fill="#76b7b2"/>
+<rect x="320.4" y="107.3" width="39.2" height="372.7" fill="#59a14f"/>
+<text x="251.2" y="500" text-anchor="middle" font-size="12" font-family="Arial">f16</text>
+<rect x="458.6" y="144.5" width="39.2" height="335.5" fill="#4e79a7"/>
+<rect x="504.6" y="107.3" width="39.2" height="372.7" fill="#f28e2b"/>
+<rect x="550.7" y="107.3" width="39.2" height="372.7" fill="#e15759"/>
+<rect x="596.8" y="107.3" width="39.2" height="372.7" fill="#76b7b2"/>
+<rect x="642.9" y="256.4" width="39.2" height="223.6" fill="#59a14f"/>
+<text x="573.8" y="500" text-anchor="middle" font-size="12" font-family="Arial">q8_0</text>
+<rect x="781.1" y="219.1" width="39.2" height="260.9" fill="#4e79a7"/>
+<rect x="827.1" y="144.5" width="39.2" height="335.5" fill="#f28e2b"/>
+<rect x="873.2" y="144.5" width="39.2" height="335.5" fill="#e15759"/>
+<rect x="919.3" y="219.1" width="39.2" height="260.9" fill="#76b7b2"/>
+<rect x="965.4" y="256.4" width="39.2" height="223.6" fill="#59a14f"/>
+<text x="896.2" y="500" text-anchor="middle" font-size="12" font-family="Arial">q4_k_m</text>
+<rect x="1103.6" y="293.6" width="39.2" height="186.4" fill="#4e79a7"/>
+<rect x="1149.6" y="219.1" width="39.2" height="260.9" fill="#f28e2b"/>
+<rect x="1195.7" y="219.1" width="39.2" height="260.9" fill="#e15759"/>
+<rect x="1241.8" y="256.4" width="39.2" height="223.6" fill="#76b7b2"/>
+<rect x="1287.9" y="219.1" width="39.2" height="260.9" fill="#59a14f"/>
+<text x="1218.8" y="500" text-anchor="middle" font-size="12" font-family="Arial">q4_k_s</text>
+<rect x="90" y="545" width="12" height="12" fill="#4e79a7"/>
+<text x="108" y="555" font-size="12" font-family="Arial">bottom10_overlap</text>
+<rect x="410" y="545" width="12" height="12" fill="#f28e2b"/>
+<text x="428" y="555" font-size="12" font-family="Arial">kendall_tau_b</text>
+<rect x="730" y="545" width="12" height="12" fill="#e15759"/>
+<text x="748" y="555" font-size="12" font-family="Arial">pearson</text>
+<rect x="1050" y="545" width="12" height="12" fill="#76b7b2"/>
+<text x="1068" y="555" font-size="12" font-family="Arial">spearman</text>
+<rect x="90" y="565" width="12" height="12" fill="#59a14f"/>
+<text x="108" y="575" font-size="12" font-family="Arial">top10_overlap</text>
+</svg>

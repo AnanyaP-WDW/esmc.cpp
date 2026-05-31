@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="650" viewBox="0 0 1400 650">
+<rect x="0" y="0" width="100%" height="100%" fill="white"/>
+<text x="700.0" y="32" text-anchor="middle" font-size="22" font-family="Arial">Throughput by bucket (M8E)</text>
+<line x1="90" y1="70" x2="90" y2="480" stroke="#333"/>
+<line x1="90" y1="480" x2="1380" y2="480" stroke="#333"/>
+<text x="20" y="275.0" transform="rotate(-90 20,275.0)" font-size="14" font-family="Arial">seq/s</text>
+<line x1="85" y1="480.0" x2="90" y2="480.0" stroke="#666"/>
+<text x="82" y="484.0" text-anchor="end" font-size="11" font-family="Arial">0.00</text>
+<line x1="85" y1="398.0" x2="90" y2="398.0" stroke="#666"/>
+<text x="82" y="402.0" text-anchor="end" font-size="11" font-family="Arial">6.44</text>
+<line x1="90" y1="398.0" x2="1380" y2="398.0" stroke="#eee"/>
+<line x1="85" y1="316.0" x2="90" y2="316.0" stroke="#666"/>
+<text x="82" y="320.0" text-anchor="end" font-size="11" font-family="Arial">12.89</text>
+<line x1="90" y1="316.0" x2="1380" y2="316.0" stroke="#eee"/>
+<line x1="85" y1="234.0" x2="90" y2="234.0" stroke="#666"/>
+<text x="82" y="238.0" text-anchor="end" font-size="11" font-family="Arial">19.33</text>
+<line x1="90" y1="234.0" x2="1380" y2="234.0" stroke="#eee"/>
+<line x1="85" y1="152.0" x2="90" y2="152.0" stroke="#666"/>
+<text x="82" y="156.0" text-anchor="end" font-size="11" font-family="Arial">25.78</text>
+<line x1="90" y1="152.0" x2="1380" y2="152.0" stroke="#eee"/>
+<line x1="85" y1="70.0" x2="90" y2="70.0" stroke="#666"/>
+<text x="82" y="74.0" text-anchor="end" font-size="11" font-family="Arial">32.22</text>
+<line x1="90" y1="70.0" x2="1380" y2="70.0" stroke="#eee"/>
+<rect x="151.4" y="107.3" width="52.2" height="372.7" fill="#4e79a7"/>
+<rect x="212.9" y="348.8" width="52.2" height="131.2" fill="#f28e2b"/>
+<rect x="274.3" y="294.9" width="52.2" height="185.1" fill="#e15759"/>
+<rect x="335.7" y="370.4" width="52.2" height="109.6" fill="#76b7b2"/>
+<rect x="397.1" y="405.9" width="52.2" height="74.1" fill="#59a14f"/>
+<text x="305.0" y="500" text-anchor="middle" font-size="12" font-family="Arial">short</text>
+<rect x="581.4" y="351.4" width="52.2" height="128.6" fill="#4e79a7"/>
+<rect x="642.9" y="422.0" width="52.2" height="58.0" fill="#f28e2b"/>
+<rect x="704.3" y="409.3" width="52.2" height="70.7" fill="#e15759"/>
+<rect x="765.7" y="418.9" width="52.2" height="61.1" fill="#76b7b2"/>
+<rect x="827.1" y="458.6" width="52.2" height="21.4" fill="#59a14f"/>
+<text x="735.0" y="500" text-anchor="middle" font-size="12" font-family="Arial">medium</text>
+<rect x="1011.4" y="444.0" width="52.2" height="36.0" fill="#4e79a7"/>
+<rect x="1072.9" y="457.8" width="52.2" height="22.2" fill="#f28e2b"/>
+<rect x="1134.3" y="463.1" width="52.2" height="16.9" fill="#e15759"/>
+<rect x="1195.7" y="463.6" width="52.2" height="16.4" fill="#76b7b2"/>
+<rect x="1257.1" y="475.8" width="52.2" height="4.2" fill="#59a14f"/>
+<text x="1165.0" y="500" text-anchor="middle" font-size="12" font-family="Arial">long</text>
+<rect x="90" y="545" width="12" height="12" fill="#4e79a7"/>
+<text x="108" y="555" font-size="12" font-family="Arial">PT MPS f32</text>
+<rect x="410" y="545" width="12" height="12" fill="#f28e2b"/>
+<text x="428" y="555" font-size="12" font-family="Arial">PT CPU f32</text>
+<rect x="730" y="545" width="12" height="12" fill="#e15759"/>
+<text x="748" y="555" font-size="12" font-family="Arial">Metal Q4_K_S</text>
+<rect x="1050" y="545" width="12" height="12" fill="#76b7b2"/>
+<text x="1068" y="555" font-size="12" font-family="Arial">Metal f16</text>
+<rect x="90" y="565" width="12" height="12" fill="#59a14f"/>
+<text x="108" y="575" font-size="12" font-family="Arial">CPU f16</text>
+</svg>
