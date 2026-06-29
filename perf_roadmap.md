@@ -365,3 +365,271 @@ measurements.
 - Multi-GPU / distributed inference.
 - Upstreaming to `ggml-org/llama.cpp` (see `ggml/AGENTS.md` AI-contribution policy).
 - 600M / 6B model bring-up (tracked separately under M9 in `lab_manual.md`).
+
+---
+
+## 10. Paper update: incorporate performance roadmap results
+
+**Goal.** Revise `paper.tex` so Sections 1, 5, 6, and 7 reflect the completed
+M0–M5 + M2.2 milestones, moving flash attention, GPU scheduling, and batching
+from "future work" to "implemented" and replacing the M1 throughput/memory
+tables with M4 Max data.
+
+**Approach (Option C — Hybrid).** Replace throughput/memory tables with M4 Max
+data; keep hardware-independent correctness/downstream as-is; update hardware
+description from "16 GB M1" → "M4 Max 36 GB" everywhere.
+
+Dependency order within this section: Phase 0 → Phase 1 → Phase 2.
+
+```
+Phase 0 (data)  ─→ Phase 1 (text) ─→ Phase 2 (verify)
+   T0              T1–T10              T11–T13
+```
+
+Each task has an exit criterion the agent can verify autonomously before
+declaring the task complete.
+
+---
+
+### Phase 0 — Gather M4 Max data
+
+#### T0 — Regenerate throughput/memory tables and figures from M4 Max CSV
+
+**What.** Run `benchmarks/throughput.py` and `benchmarks/paper_artifacts.py` on
+M4 Max to produce updated throughput/memory CSVs and SVG/PDF figures.
+
+**Exit criterion.**
+```bash
+rg 'M4 Max' results/throughput_*.csv && ls -t results/paper_artifacts_300m/*.svg | head -5
+```
+
+---
+
+### Phase 1 — Text changes (one task per paper section)
+
+#### T1 — Update hardware description in abstract (lines 47–49)
+
+**What.** Change `"a benchmark study on a 16\,GB Apple M1"` → `"a benchmark study
+on an Apple M4 Max with 36\,GB unified memory"`. Add brief mention of flash
+attention, GPU-resident graphs, and batching as completed contributions.
+
+**Exit criterion.**
+```bash
+grep -q 'M4 Max' paper.tex && grep -q 'flash attention' paper.tex
+```
+There must be no remaining mention of "16 GB" or "M1" in the abstract.
+
+---
+
+#### T2 — Update §1 Introduction (lines 58–67)
+
+**What.**
+- Line 66: `"16\,GB M1 host"` → `"M4 Max (36\,GB) host"`
+- Contribution bullet 4: expand to mention the performance roadmap (flash,
+  batching, GPU scheduling) as part of the empirical study.
+- Remove or rephrase any "begun to address" language — the roadmap is done.
+
+**Exit criterion.**
+```bash
+grep -q 'performance roadmap\|flash\|batching\|GPU.*schedul' paper.tex
+test $(grep -c '16.*GB.*M1\|M1.*16.*GB' paper.tex) -eq 0
+```
+Zero instances of "16 GB M1" in the paper.
+
+---
+
+#### T3 — Update §5 hardware description (line 154)
+
+**What.** Change `"Apple M1 (arm64, 16\,GB unified memory, macOS 26.5)"` →
+`"Apple M4 Max (arm64, 36\,GB unified memory, macOS 26.5)"`.
+
+**Exit criterion.**
+```bash
+grep -q 'M4 Max.*arm64.*36.*GB' paper.tex
+```
+
+---
+
+#### T4 — Replace §5.2 Throughput table + narrative (lines 178–208)
+
+**What.**
+- Replace Table `\label{tab:throughput}` with M4 Max data from EXP-020:
+  - F16 Metal: short 10.9ms (91.7 seq/s), medium 27.1ms (36.9 seq/s),
+    long 171.9ms (4.9 seq/s)
+  - Q4_K_M Metal: short 11.9ms, medium 28.1ms, long 187.8ms
+  - Q8_0 Metal: short 12.1ms, medium 30.5ms, long 185.3ms
+- Rewrite narrative:
+  - F16 is the fastest on M4 Max (native F16 tensor cores)
+  - Quantization's value is model-size reduction, not Metal speed
+  - CPU path is 10–40× slower than Metal on this hardware
+  - Remove "PyTorch MPS remains the fastest" and "0.76× PyTorch CPU long"
+    (M1-specific claims)
+  - Remove or rewrite "long-sequence collapse...begun to address" — flash
+    attention has now landed.
+
+**Exit criterion.**
+```bash
+# New narrative key indicators:
+grep -q 'F16.*fastest\|native.*F16.*tensor' paper.tex && grep -q '10.9\|91.7.*seq/s' paper.tex
+# Old M1-specific claims removed:
+test $(grep -c 'PyTorch MPS remains the fastest' paper.tex) -eq 0
+test $(grep -c 'begun to address' paper.tex) -eq 0
+```
+
+---
+
+#### T5 — Add §5.3 Performance Roadmap subsection
+
+**What.** Insert a new subsection after the throughput subsection, describing
+the completed performance milestones:
+- **M1 (weight/graph residency):** alloc→0, 6× Metal short improvement
+  (90ms→15ms)
+- **M2 (flash attention):** up to 24% compute reduction at 2002 tokens
+- **M3 (GPU scheduler):** 99% alloc reduction, 10–19% compute improvement
+- **M2.2 (precision cleanup):** no-op on Metal, forward-compat for CPU
+
+Use numbers from lab_manual EXP-017, EXP-018, EXP-019, EXP-022.
+
+**Exit criterion.**
+```bash
+grep -q 'weight.*residency\|6.*Metal.*short\|flash.*24.*%\|GPU.*scheduler.*99.*%' paper.tex
+grep -q '\\label{sec:perf-roadmap}\|\\label{sec:performance}' paper.tex
+```
+
+---
+
+#### T6 — Add §5.4 Batching subsection
+
+**What.** Insert a new subsection after the performance roadmap subsection,
+describing the batching results from EXP-021:
+- `esmc_embed_batch` API: flat 1D tokens, F16 mask, per-batch graph cache
+- Throughput scaling: batch=16 → 3.6× single-seq throughput (345 seq/s)
+- Nearly linear to batch=4 (2.8×)
+- Key design decisions: post-flash `cont_2d` vs post-dense `permute`-back
+
+**Exit criterion.**
+```bash
+grep -q '3.6.*batch.*16\|345.*seq/s\|batching' paper.tex && grep -q 'cont_2d\|permute.*back' paper.tex
+```
+
+---
+
+#### T7 — Renumber all figures and tables
+
+**What.** After inserting two new subsections (§5.3, §5.4), every
+`\label{fig:*}` / `\label{tab:*}` / `Figure~\ref` / `Table~\ref` must be
+checked and renumbered to maintain sequence. Update figure captions if the
+figure ordering changes.
+
+**Exit criterion.**
+```bash
+# Verify no duplicate labels:
+test $(grep -oP '\\label\{\w+\}' paper.tex | sort | uniq -d | wc -l) -eq 0
+```
+
+---
+
+#### T8 — Update §6 Limitations (lines 247–264)
+
+**What.**
+- "Scope" bullet: update `"16\,GB M1 host"` → M4 Max
+- "Throughput regime" bullet: replace `"Flash attention and persistent
+  GPU-resident graphs are the obvious next steps"` with:
+  *Flash attention, GPU scheduling, and batching are now implemented and
+  measured. The remaining bottleneck is single-hardware scope (36 GB M4 Max
+  only) and the 300M-only model restriction.*
+- Add a brief note on the batch=32 GPU memory ceiling.
+
+**Exit criterion.**
+```bash
+# Old text gone:
+test $(grep -c 'obvious next steps' paper.tex) -eq 0
+# New text present:
+grep -q 'implemented.*measured\|batch.*32.*memory.*ceiling\|M4 Max.*36.*GB' paper.tex
+```
+
+---
+
+#### T9 — Update §7 Conclusion (lines 265–268)
+
+**What.** Replace `"Extending the runtime to 600M and 6B, adding flash
+attention and GPU-resident graphs, and batching for throughput-bound workloads
+are the natural next steps"` with:
+*Flash attention, GPU scheduling, and batching are now implemented. The
+remaining future work is extending the runtime to 600M and 6B, multi-hardware
+benchmarking, and optimizing batched throughput beyond batch=16.*
+
+**Exit criterion.**
+```bash
+# Old text gone:
+test $(grep -c 'natural next steps' paper.tex) -eq 0
+# New text present:
+grep -q 'implemented.*remaining.*future\|600M.*6B.*multi-hardware' paper.tex
+```
+
+---
+
+#### T10 — Regenerate figures from M4 Max data
+
+**What.** Replace `figures/throughput_seqps.pdf` and `figures/memory_long_rss.pdf`
+with versions generated from M4 Max CSV data. The PDF labels and axis ranges
+must be updated to reflect 36 GB hardware.
+
+**Exit criterion.**
+```bash
+# File is newer than the M4 Max CSV:
+test results/paper_artifacts_300m/throughput_seqps.pdf -nt results/throughput_m4_max.csv
+test results/paper_artifacts_300m/memory_long_rss.pdf -nt results/memory_m4_max.csv
+```
+
+---
+
+### Phase 2 — Verification
+
+#### T11 — Compile paper.tex end-to-end
+
+**What.** Run `pdflatex paper.tex` twice (for cross-references) and confirm
+zero errors, zero undefined references.
+
+**Exit criterion.**
+```bash
+pdflatex -interaction=nonstopmode paper.tex 2>&1 | tail -5 | grep -q 'Output written on paper.pdf'
+test $(pdflatex -interaction=nonstopmode paper.tex 2>&1 | grep -c 'Warning.*undefined\|Error\|!') -eq 0
+```
+
+---
+
+#### T12 — Verify all cross-references resolve
+
+**What.** Check that every `\ref{...}` / `\cite{...}` points to a defined label.
+No `??` in the output PDF.
+
+**Exit criterion.**
+```bash
+# Check .log for unresolved references:
+test $(grep -c 'Rerun to get cross-references right\|undefined.*reference\|Citation.*undefined' paper.log) -eq 0
+```
+
+---
+
+#### T13 — Update lab_manual.md with paper change record
+
+**What.** Add a new subsection in the lab_manual's planned-experiments area
+(§8) recording which paper sections were changed, which EXP results they
+incorporate, and the task completion status.
+
+**Exit criterion.**
+```bash
+grep -q 'Paper update.*EXP-01[6-9]\|EXP-02[0-2]\|section.*changed\|task.*complete' lab_manual.md
+```
+
+---
+
+### Risks
+
+| Risk | Mitigation |
+|------|------------|
+| M4 Max PyTorch baselines missing from throughput CSV | Re-run `throughput.py` with PyTorch rows enabled before T0 |
+| `caisc_2026.sty` not available for compilation | Download from CAISc website before T11 |
+| `paper_artifacts.py` CSV column names differ between M1 and M4 Max output | Inspect and align column headers in Phase 0 before figure generation |
+| Cross-reference renumbering misses an internal `\ref` | T7 + T12 catch this; T12's exit criterion explicitly checks for `??`

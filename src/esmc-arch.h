@@ -44,7 +44,9 @@ struct esmc_model {
 
     struct ggml_context      * ctx_meta    = nullptr;
     struct ggml_context      * ctx_weights = nullptr;
+    struct ggml_context      * ctx_weights_backend = nullptr; // scratch context for backend-resident weight tensors
     struct ggml_backend      * backend     = nullptr;
+    struct ggml_backend      * backend_cpu = nullptr; // CPU backend (required by scheduler as fallback)
     struct ggml_backend_buffer * buf       = nullptr;
     struct gguf_context      * gguf_ctx    = nullptr;
 

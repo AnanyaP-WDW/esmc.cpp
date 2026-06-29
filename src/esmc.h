@@ -25,6 +25,7 @@ void           esmc_model_print_tensors(const esmc_model * model);
 esmc_context * esmc_new_context(esmc_model * model);
 void           esmc_free_context(esmc_context * ctx);
 void           esmc_context_set_max_layers(esmc_context * ctx, int n_layers);
+void           esmc_context_set_flash_attn(esmc_context * ctx, bool enabled);
 
 int esmc_layer0_qk_norms(
     esmc_context * ctx,
@@ -51,6 +52,13 @@ int esmc_embed(esmc_context * ctx,
 
 /** Write float32 array [n_rows, n_cols] in NumPy .npy format. */
 int esmc_save_npy(const char * path, const float * data, int n_rows, int n_cols);
+
+int esmc_embed_batch(esmc_context * ctx,
+                     const int32_t * tokens,
+                     const int32_t * lengths,
+                     int32_t n_seq,
+                     int32_t max_len,
+                     float * embeddings_out);
 
 int esmc_embed_mean(esmc_context * ctx,
                     const int32_t * tokens,

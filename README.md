@@ -75,7 +75,7 @@ cmake --build build -j8
 ## Reproduce the paper results (300M, end-to-end)
 
 The commands below reproduce every number in the paper, in order, from a clean
-clone. Run them on an Apple Silicon Mac (16 GB recommended) for the full
+clone. Run them on an Apple Silicon Mac (36 GB recommended) for the full
 CPU + Metal matrix; non-Apple/CPU-only hosts can run everything except the Metal
 rows. Budget ~3 GB of downloads (checkpoint + ProteinGym archive) and a few hours
 for the complete benchmark matrix.
@@ -178,7 +178,7 @@ cmake --build build --target esmc-bench
 
 ## Benchmark results (300M)
 
-**Host:** Apple M1 (arm64), 16 GB unified memory, macOS 26.5.  
+**Host:** Apple M4 Max (arm64), 36 GB unified memory, macOS 26.5.  
 **Reference:** official PyTorch ESM-C 300M (`tests/ref_forward.py` on native safetensors).  
 **Datasets:** 100 reviewed human [UniProt](https://www.uniprot.org/) sequences (correctness); length-bucketed FASTA (throughput/memory); [ProteinGym](https://www.proteingym.org/) 10-assay × 1000-variant subset (downstream).
 
@@ -200,7 +200,7 @@ Regenerate with `benchmarks/paper_artifacts.py` (writes SVG; PNG if matplotlib i
 
 [PDF](figures/throughput_seqps.pdf) · [SVG](figures/throughput_seqps.svg)
 
-#### Peak memory (long bucket, 16 GiB M1)
+#### Peak memory (long bucket, 36 GB M4 Max)
 
 ![Peak resident set size by configuration](figures/memory_long_rss.svg)
 
@@ -227,36 +227,36 @@ GGUF on-disk size (300M): F16 634 MiB, Q8_0 337 MiB, Q4_K_M 237 MiB, Q4_K_S 228 
 
 ### Throughput (seq/s)
 
-Single-sequence throughput by length bucket; each backend runs in a fresh process. **Best esmc.cpp** = highest seq/s for that bucket among CPU/Metal × F16/Q8_0/Q4_K_*.
+Single-sequence throughput by length bucket; each backend runs in a fresh process. **Best esmc.cpp** = highest seq/s for that bucket among CPU/Metal × F16/Q8_0/Q4_K_*. Measured on the M4 Max (36 GB) host; PyTorch baselines were not re-benchmarked on this hardware.
 
-| Bucket | Tokens | Best esmc.cpp | seq/s | PyTorch CPU | PyTorch MPS | vs CPU | vs MPS |
-|--------|--------|---------------|-------|-------------|-------------|--------|--------|
-| short  | 47     | metal/q4_k_s  | 14.54 | 10.31       | 29.29       | 1.41×  | 0.50×  |
-| medium | 235    | metal/q4_k_m  | 5.62  | 4.56        | 10.11       | 1.23×  | 0.56×  |
-| long   | 850    | metal/q8_0    | 1.33  | 1.74        | 2.83        | 0.76×  | 0.47×  |
+| Bucket | Tokens | Best esmc.cpp | seq/s |
+|--------|--------|---------------|-------|
+| short  | 47     | metal/f16     | 91.0  |
+| medium | 235    | metal/f16     | 36.6  |
+| long   | 850    | metal/f16     | 5.1   |
 
-Metal 4-bit esmc.cpp beats PyTorch CPU on short and medium sequences at ~520 MiB peak RAM; PyTorch MPS remains fastest on this hardware.
+F16 Metal is fastest across all buckets on the M4 Max, exploiting the native FP16 tensor-core path. Quantization's primary value is model-size reduction rather than throughput.
 
-### Peak memory (long bucket, 16 GiB budget)
+### Peak memory (long bucket, 36 GB M4 Max)
 
-Peak resident set size (RSS) measured with `/usr/bin/time -l` in fresh processes. All 12 configurations below pass the 16 GiB machine budget.
+Peak resident set size (RSS) measured with `/usr/bin/time -l` in fresh processes. All 12 configurations below pass the 36 GB machine budget.
 
-| Configuration | Peak RSS (MiB) | Model file (MiB) | ≤ 16 GiB |
+| Configuration | Peak RSS (MiB) | Model file (MiB) | ≤ 36 GiB |
 |---------------|----------------|------------------|----------|
-| esmc.cpp / cpu / f16 | 7426 | 634 | yes |
-| esmc.cpp / cpu / q8_0 | 6831 | 337 | yes |
-| esmc.cpp / cpu / q4_k_m | 6632 | 237 | yes |
-| esmc.cpp / cpu / q4_k_s | 6613 | 228 | yes |
-| esmc.cpp / cpu / f32 | 3989 | 1266 | yes |
-| esmc.cpp / metal / f32 | 2570 | 1266 | yes |
-| pytorch / cpu / f32 | 1588 | 1270 | yes |
-| esmc.cpp / metal / f16 | 1323 | 634 | yes |
-| esmc.cpp / metal / q8_0 | 736 | 337 | yes |
-| esmc.cpp / metal / q4_k_m | 531 | 237 | yes |
-| esmc.cpp / metal / q4_k_s | 519 | 228 | yes |
-| pytorch / mps / f32 | 282 | 1270 | yes |
+| esmc.cpp / cpu / f32 | 2609 | 1266 | yes |
+| esmc.cpp / metal / f32 | 2591 | 1266 | yes |
+| pytorch / cpu / f32 | 1576 | 1270 | yes |
+| esmc.cpp / cpu / f16 | 1346 | 634 | yes |
+| esmc.cpp / metal / f16 | 1325 | 634 | yes |
+| esmc.cpp / cpu / q8_0 | 751 | 337 | yes |
+| esmc.cpp / metal / q8_0 | 732 | 337 | yes |
+| esmc.cpp / cpu / q4_k_m | 552 | 237 | yes |
+| esmc.cpp / cpu / q4_k_s | 533 | 228 | yes |
+| esmc.cpp / metal / q4_k_m | 533 | 237 | yes |
+| esmc.cpp / metal / q4_k_s | 515 | 228 | yes |
+| pytorch / mps / f32 | 280 | 1270 | yes |
 
-**Deployment sweet spot:** Metal Q4_K_M or Q4_K_S — ~520 MiB peak RSS, ~230 MiB on disk, 1.2–1.4× PyTorch CPU throughput on short/medium sequences.
+**Deployment sweet spot:** Metal Q4_K_M or Q4_K_S — ~520 MiB peak RSS, ~230 MiB on disk. Unlike the M1, CPU and Metal RSS are near-identical per precision (scaling with model-file size rather than attention scratch), and all configurations use less than 8% of the 36 GB budget.
 
 ### Downstream variant-effect preservation (ProteinGym)
 

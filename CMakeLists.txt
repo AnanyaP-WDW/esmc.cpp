@@ -39,5 +39,9 @@ add_executable(esmc-quantize examples/quantize/main.cpp)
 target_link_libraries(esmc-quantize PRIVATE ggml)
 target_compile_features(esmc-quantize PRIVATE cxx_std_17)
 
+add_executable(esmc-test-batch tests/test_batch.cpp)
+target_link_libraries(esmc-test-batch PRIVATE esmc)
+target_compile_features(esmc-test-batch PRIVATE cxx_std_17)
+
 # Convenience: match plan verification `make -C build esmc-embed`
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

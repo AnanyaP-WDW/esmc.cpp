@@ -4,11 +4,15 @@
 
 #include "ggml.h"
 #include "ggml-backend.h"
+#include "ggml-cpu.h"
 #include "gguf.h"
 
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
+#include <thread>
 
 // Public C API implementations (must use C linkage for esmc.h)
 extern "C" {
@@ -245,6 +249,91 @@ esmc_model * esmc_load_model(const char * path, esmc_model_params params) {
     }
     printf("ESM-C backend: %s\n", ggml_backend_name(model->backend));
 
+    // Create a separate CPU backend for the scheduler (required as fallback).
+    if (!ggml_backend_is_cpu(model->backend)) {
+        model->backend_cpu = ggml_backend_init_by_type(GGML_BACKEND_DEVICE_TYPE_CPU, nullptr);
+        if (!model->backend_cpu) {
+            fprintf(stderr, "esmc: failed to init CPU backend for scheduler\n");
+            esmc_free_model(model);
+            return nullptr;
+        }
+    }
+
+    // M1 — Upload weights to persistent backend buffer once at load time.
+    // Create a scratch ggml context (no_alloc), duplicate weight tensors,
+    // and let ggml_backend_alloc_ctx_tensors allocate them into model->buf.
+    // Then copy the CPU-loaded data into the backend buffer and swap pointers.
+    {
+        const int64_t n_t = gguf_get_n_tensors(model->gguf_ctx);
+        struct ggml_init_params wparams = {
+            .mem_size = (size_t)n_t * ggml_tensor_overhead() + 1024,
+            .mem_buffer = nullptr,
+            .no_alloc = true,
+        };
+        struct ggml_context * ctx_w = ggml_init(wparams);
+        if (!ctx_w) {
+            fprintf(stderr, "esmc: failed to create scratch weight context\n");
+            esmc_free_model(model);
+            return nullptr;
+        }
+
+        // Duplicate every weight tensor into the scratch context (metadata only)
+        for (int64_t i = 0; i < n_t; i++) {
+            const char * name = gguf_get_tensor_name(model->gguf_ctx, i);
+            struct ggml_tensor * old_t = ggml_get_tensor(model->ctx_weights, name);
+            if (!old_t) continue;
+            struct ggml_tensor * new_t = ggml_dup_tensor(ctx_w, old_t);
+            ggml_set_name(new_t, name);
+        }
+
+        // Allocate backend buffer for all weight tensors
+        model->buf = ggml_backend_alloc_ctx_tensors(ctx_w, model->backend);
+        if (!model->buf) {
+            fprintf(stderr, "esmc: failed to allocate persistent weight buffer\n");
+            ggml_free(ctx_w);
+            esmc_free_model(model);
+            return nullptr;
+        }
+
+        // Copy data from CPU to backend buffer and update model pointers
+        for (int64_t i = 0; i < n_t; i++) {
+            const char * name = gguf_get_tensor_name(model->gguf_ctx, i);
+            struct ggml_tensor * old_t = ggml_get_tensor(model->ctx_weights, name);
+            struct ggml_tensor * new_t = ggml_get_tensor(ctx_w, name);
+            if (!old_t || !new_t) continue;
+            ggml_backend_tensor_set(new_t, old_t->data, 0, ggml_nbytes(old_t));
+
+            // Replace every occurrence of old_t with new_t in the model struct.
+            // Walk all known weight pointers to find the match.
+            #define REPLACE(ptr) do { \
+                if ((void*)(ptr) == (void*)old_t) { (ptr) = new_t; } \
+            } while(0)
+
+            REPLACE(model->tok_embd);
+            REPLACE(model->output_norm);
+            REPLACE(model->lm_head);
+            for (auto & layer : model->layers) {
+                REPLACE(layer.attn_norm);
+                REPLACE(layer.attn_norm_bias);
+                REPLACE(layer.q_norm);
+                REPLACE(layer.k_norm);
+                REPLACE(layer.wq);
+                REPLACE(layer.wk);
+                REPLACE(layer.wv);
+                REPLACE(layer.wo);
+                REPLACE(layer.ffn_norm);
+                REPLACE(layer.ffn_gate);
+                REPLACE(layer.ffn_up);
+                REPLACE(layer.ffn_down);
+            }
+            #undef REPLACE
+        }
+
+        model->ctx_weights_backend = ctx_w;
+    }
+    printf("ESM-C: weight buffer allocated (%zu MB)\n",
+           ggml_backend_buffer_get_size(model->buf) / (1024 * 1024));
+
     (void) params.use_mmap;
     return model;
 }
@@ -253,13 +342,21 @@ void esmc_free_model(esmc_model * model) {
     if (!model) {
         return;
     }
+    if (model->buf) {
+        ggml_backend_buffer_free(model->buf);
+        model->buf = nullptr;
+    }
     if (model->backend) {
         ggml_backend_free(model->backend);
         model->backend = nullptr;
     }
-    if (model->buf) {
-        ggml_backend_buffer_free(model->buf);
-        model->buf = nullptr;
+    if (model->backend_cpu) {
+        ggml_backend_free(model->backend_cpu);
+        model->backend_cpu = nullptr;
+    }
+    if (model->ctx_weights_backend) {
+        ggml_free(model->ctx_weights_backend);
+        model->ctx_weights_backend = nullptr;
     }
     if (model->gguf_ctx) {
         gguf_free(model->gguf_ctx);
@@ -284,7 +381,7 @@ esmc_context * esmc_new_context(esmc_model * model) {
     }
     auto * ctx = new esmc_context{};
     ctx->model     = model;
-    ctx->n_threads = 4;
+    ctx->n_threads = (int) std::thread::hardware_concurrency();
     return ctx;
 }
 
@@ -292,9 +389,9 @@ void esmc_free_context(esmc_context * ctx) {
     if (!ctx) {
         return;
     }
-    if (ctx->buf_compute) {
-        ggml_backend_buffer_free(ctx->buf_compute);
-        ctx->buf_compute = nullptr;
+    if (ctx->sched) {
+        ggml_backend_sched_free(ctx->sched);
+        ctx->sched = nullptr;
     }
     if (ctx->ctx_compute) {
         ggml_free(ctx->ctx_compute);
@@ -306,6 +403,15 @@ void esmc_free_context(esmc_context * ctx) {
 void esmc_context_set_max_layers(esmc_context * ctx, int n_layers) {
     if (ctx) {
         ctx->n_layers_max = n_layers;
+    }
+}
+
+void esmc_context_set_flash_attn(esmc_context * ctx, bool enabled) {
+    if (ctx && ctx->use_flash_attn != enabled) {
+        ctx->use_flash_attn = enabled;
+        // Invalidate cached graph — flash vs dense produce different graphs
+        ctx->cached_n_tokens = 0;
+        ctx->cached_gf       = nullptr;
     }
 }
 
@@ -423,12 +529,23 @@ int esmc_embed(
         return -1;
     }
 
+    using clk = std::chrono::steady_clock;
+    const bool profile = getenv("ESMC_PROFILE") && getenv("ESMC_PROFILE")[0] == '1';
     const int n_embd = (int) ctx->model->hparams.n_embd;
 
+    ctx->profile_alloc_us = 0;
+    auto t0 = clk::now();
+
     struct ggml_cgraph * gf = esmc_build_graph(ctx, tokens, n_tokens, false);
-    if (!gf || esmc_run_graph(ctx, gf, tokens, n_tokens) != 0) {
+    if (!gf) {
         return -1;
     }
+    auto t1 = clk::now();
+
+    if (esmc_run_graph(ctx, gf, tokens, n_tokens) != 0) {
+        return -1;
+    }
+    auto t2 = clk::now();
 
     struct ggml_tensor * output = ggml_graph_get_tensor(gf, "output");
     if (!output) {
@@ -448,11 +565,154 @@ int esmc_embed(
         return -1;
     }
 
+    auto t3 = clk::now();
+
     // Output tensor is ggml-native (ne[0]=n_embd, ne[1]=n_tokens, contiguous).
     // Memory layout: tmp[d + t*n_embd] = element (d, t). The desired output is
     // row-major [n_tokens, n_embd]: embeddings_out[t*n_embd + d] = element (d, t).
     // These coincide bytewise so a single memcpy is correct.
     std::memcpy(embeddings_out, tmp.data(), tmp.size() * sizeof(float));
+
+    if (profile) {
+        auto build_total_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+        auto compute_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+        auto readback_us = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
+        auto alloc_us = ctx->profile_alloc_us;
+        double build_ms = (build_total_us - alloc_us) / 1000.0;
+        double alloc_ms = alloc_us / 1000.0;
+        double compute_ms = compute_us / 1000.0;
+        double readback_ms = readback_us / 1000.0;
+        double total_ms = (build_total_us + compute_us + readback_us) / 1000.0;
+        fprintf(stderr, "ESMC_PROFILE: build=%.1fms alloc=%.1fms compute=%.1fms readback=%.1fms total=%.1fms tokens=%d\n",
+                build_ms, alloc_ms, compute_ms, readback_ms, total_ms, n_tokens);
+    }
+
+    return 0;
+}
+
+int esmc_embed_batch(
+    esmc_context * ctx,
+    const int32_t * tokens,
+    const int32_t * lengths,
+    int32_t n_seq,
+    int32_t max_len,
+    float * embeddings_out) {
+    if (!ctx || !tokens || !lengths || !embeddings_out || n_seq <= 0 || max_len <= 0) {
+        return -1;
+    }
+
+    using clk = std::chrono::steady_clock;
+    const bool profile = getenv("ESMC_PROFILE") && getenv("ESMC_PROFILE")[0] == '1';
+    const int n_embd = (int) ctx->model->hparams.n_embd;
+
+    ctx->profile_alloc_us = 0;
+    auto t0 = clk::now();
+
+    struct ggml_cgraph * gf = esmc_build_graph_batch(ctx, max_len, n_seq);
+    if (!gf) {
+        return -1;
+    }
+    auto t1 = clk::now();
+
+    // Fill inp_tokens: [max_len, n_seq], row-major: element (t, s) = tokens[s * max_len + t]
+    struct ggml_tensor * inp_t = ggml_graph_get_tensor(gf, "inp_tokens");
+    if (!inp_t) return -1;
+    ggml_backend_tensor_set(inp_t, tokens, 0, (size_t) max_len * (size_t) n_seq * sizeof(int32_t));
+
+    // Fill pos: [max_len], positions 0..max_len-1
+    struct ggml_tensor * pos_t = ggml_graph_get_tensor(gf, "pos");
+    if (pos_t) {
+        std::vector<int32_t> positions(max_len);
+        for (int i = 0; i < max_len; i++) {
+            positions[i] = i;
+        }
+        ggml_backend_tensor_set(pos_t, positions.data(), 0, (size_t) max_len * sizeof(int32_t));
+    }
+
+    // Fill mask: [max_len, max_len, 1, n_seq] (F16)
+    // mask[t_kv][t_q][0][s] = 0.0f if both t_kv < lengths[s] and t_q < lengths[s], else -INF
+    struct ggml_tensor * mask_t = ggml_graph_get_tensor(gf, "mask");
+    if (mask_t) {
+        const size_t mask_size = (size_t) max_len * (size_t) max_len * (size_t) n_seq;
+        std::vector<ggml_fp16_t> mask_data(mask_size, ggml_fp32_to_fp16(0.0f));
+        const ggml_fp16_t neg_inf = ggml_fp32_to_fp16(-INFINITY);
+        for (int s = 0; s < n_seq; s++) {
+            const int len = lengths[s];
+            for (int t_kv = 0; t_kv < max_len; t_kv++) {
+                for (int t_q = 0; t_q < max_len; t_q++) {
+                    if (t_kv >= len || t_q >= len) {
+                        const size_t idx = (size_t) t_kv
+                                         + (size_t) max_len * (size_t) t_q
+                                         + (size_t) max_len * (size_t) max_len * (size_t) s;
+                        mask_data[idx] = neg_inf;
+                    }
+                }
+            }
+        }
+        ggml_backend_tensor_set(mask_t, mask_data.data(), 0, mask_size * sizeof(ggml_fp16_t));
+    }
+
+    if (ggml_backend_is_cpu(ctx->model->backend)) {
+        ggml_backend_cpu_set_n_threads(ctx->model->backend, ctx->n_threads);
+    }
+
+    if (ggml_backend_sched_graph_compute(ctx->sched, gf) != GGML_STATUS_SUCCESS) {
+        return -1;
+    }
+    auto t2 = clk::now();
+
+    // Read back output: [n_embd, max_len, n_seq]
+    struct ggml_tensor * output = ggml_graph_get_tensor(gf, "output");
+    if (!output) {
+        return -1;
+    }
+
+    std::vector<float> tmp((size_t) n_embd * (size_t) max_len * (size_t) n_seq);
+    if (output->type == GGML_TYPE_F32) {
+        ggml_backend_tensor_get(output, tmp.data(), 0, tmp.size() * sizeof(float));
+    } else if (output->type == GGML_TYPE_F16) {
+        std::vector<ggml_fp16_t> raw((size_t) n_embd * (size_t) max_len * (size_t) n_seq);
+        ggml_backend_tensor_get(output, raw.data(), 0, raw.size() * sizeof(ggml_fp16_t));
+        for (size_t i = 0; i < raw.size(); i++) {
+            tmp[i] = ggml_fp16_to_fp32(raw[i]);
+        }
+    } else {
+        return -1;
+    }
+
+    auto t3 = clk::now();
+
+    // Extract per-sequence embeddings.
+    // Output layout: tmp[d + n_embd*(t + max_len*s)] = element at (d, t, s).
+    // Caller wants embeddings concatenated: each sequence's tokens in order,
+    // each token as n_embd floats.
+    size_t offset = 0;
+    for (int s = 0; s < n_seq; s++) {
+        const int len = lengths[s];
+        for (int t = 0; t < len; t++) {
+            const float * src = tmp.data() + (size_t) t * (size_t) n_embd + (size_t) max_len * (size_t) n_embd * (size_t) s;
+            std::memcpy(embeddings_out + offset, src, (size_t) n_embd * sizeof(float));
+            offset += n_embd;
+        }
+    }
+
+    if (profile) {
+        auto build_total_us = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+        auto compute_us = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+        auto readback_us = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t2).count();
+        auto alloc_us = ctx->profile_alloc_us;
+        double build_ms = (build_total_us - alloc_us) / 1000.0;
+        double alloc_ms = alloc_us / 1000.0;
+        double compute_ms = compute_us / 1000.0;
+        double readback_ms = readback_us / 1000.0;
+        double total_ms = (build_total_us + compute_us + readback_us) / 1000.0;
+        fprintf(stderr,
+                "ESMC_PROFILE: build=%.1fms alloc=%.1fms compute=%.1fms readback=%.1fms total=%.1fms "
+                "batch=%d max_len=%d total_tokens=%zu\n",
+                build_ms, alloc_ms, compute_ms, readback_ms, total_ms,
+                n_seq, max_len, offset / n_embd);
+    }
+
     return 0;
 }
 

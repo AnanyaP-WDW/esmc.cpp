@@ -4,7 +4,7 @@
   "pytorch_weights": "esmc-300m/model.safetensors",
   "pytorch_dtype": "f32",
   "cpp_embed": "build/esmc-embed",
-  "budget_gb": 16.0,
+  "budget_gb": 36.0,
   "backends": [
     "cpu",
     "metal",

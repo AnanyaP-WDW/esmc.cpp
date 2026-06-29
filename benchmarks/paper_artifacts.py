@@ -27,7 +27,9 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f))
 
 
-def to_float(row: dict[str, str], key: str, default: float = math.nan) -> float:
+def to_float(row: dict[str, str] | None, key: str, default: float = math.nan) -> float:
+    if row is None:
+        return default
     value = row.get(key, "")
     if value is None or value == "":
         return default
@@ -54,8 +56,8 @@ def fmt(v: float, ndigits: int = 2) -> str:
 def throughput_artifacts(rows: list[dict[str, str]], out_dir: Path) -> tuple[list[dict[str, Any]], list[str], list[str]]:
     buckets = ["short", "medium", "long"]
 
-    def by_backend(backend: str, bucket: str) -> dict[str, str]:
-        return next(r for r in rows if r["backend"] == backend and r["sequence_bucket"] == bucket)
+    def by_backend(backend: str, bucket: str) -> dict[str, str] | None:
+        return next((r for r in rows if r["backend"] == backend and r["sequence_bucket"] == bucket), None)
 
     pt_cpu = {b: by_backend("pytorch_cpu", b) for b in buckets}
     pt_mps = {b: by_backend("pytorch_mps", b) for b in buckets}
@@ -70,8 +72,10 @@ def throughput_artifacts(rows: list[dict[str, str]], out_dir: Path) -> tuple[lis
     for b in buckets:
         best = best_by_bucket[b]
         s_best = to_float(best, "seq_per_s")
-        s_cpu = to_float(pt_cpu[b], "seq_per_s")
-        s_mps = to_float(pt_mps[b], "seq_per_s")
+        pt_cpu_row = pt_cpu.get(b)
+        pt_mps_row = pt_mps.get(b)
+        s_cpu = to_float(pt_cpu_row, "seq_per_s") if pt_cpu_row else math.nan
+        s_mps = to_float(pt_mps_row, "seq_per_s") if pt_mps_row else math.nan
         summary_rows.append(
             {
                 "bucket": b,
@@ -311,7 +315,7 @@ def generate_svg_fallback(
         ("Metal f16", lambda r: r["backend"] == "metal" and r["precision"] == "f16"),
         ("CPU f16", lambda r: r["backend"] == "cpu" and r["precision"] == "f16"),
     ]:
-        vals = [to_float(next(r for r in throughput_rows if r["sequence_bucket"] == b and selector(r)), "seq_per_s") for b in buckets]
+        vals = [to_float(next((r for r in throughput_rows if r["sequence_bucket"] == b and selector(r)), None), "seq_per_s") for b in buckets]
         t_series.append((name, vals))
     p = out_dir / "throughput_seqps.svg"
     write_svg_grouped_bar_chart(
@@ -343,8 +347,8 @@ def generate_svg_fallback(
     for m in metrics:
         vals = []
         for p0 in precisions:
-            row = next(r for r in downstream_rows if r["precision"] == p0 and r["metric_name"] == m)
-            vals.append(float(row["pass_rate"]))
+            row = next((r for r in downstream_rows if r["precision"] == p0 and r["metric_name"] == m), None)
+            vals.append(float(row["pass_rate"]) if row else math.nan)
         d_series.append((m, vals))
     p = out_dir / "downstream_10k_pass_rate.svg"
     write_svg_grouped_bar_chart(
@@ -389,7 +393,7 @@ def generate_plots(
     for i, (label, select) in enumerate(zip(labels, selectors)):
         vals = []
         for b in buckets:
-            row = next(r for r in throughput_rows if r["sequence_bucket"] == b and select(r))
+            row = next((r for r in throughput_rows if r["sequence_bucket"] == b and select(r)), None)
             vals.append(to_float(row, "seq_per_s"))
         positions = [xi + (i - 2) * width for xi in x]
         ax.bar(positions, vals, width=width, label=label)
@@ -400,11 +404,14 @@ def generate_plots(
     ax.legend(fontsize=8)
     ax.set_yscale("log")
     ax.grid(axis="y", alpha=0.3)
-    p = out_dir / "throughput_seqps.png"
+    p_png = out_dir / "throughput_seqps.png"
+    p_pdf = out_dir / "throughput_seqps.pdf"
     fig.tight_layout()
-    fig.savefig(p, dpi=180)
+    fig.savefig(p_png, dpi=180)
+    fig.savefig(p_pdf)
     plt.close(fig)
-    plot_paths.append(str(p.relative_to(ROOT)))
+    plot_paths.append(str(p_png.relative_to(ROOT)))
+    plot_paths.append(str(p_pdf.relative_to(ROOT)))
 
     # Memory plot (long bucket)
     long_rows = [r for r in memory_rows if r["sequence_bucket"] == "long"]
@@ -418,11 +425,14 @@ def generate_plots(
     ax.set_ylabel("Peak RSS (MiB)")
     ax.set_title("Memory long-bucket peak RSS (M8F)")
     ax.grid(axis="y", alpha=0.3)
-    p = out_dir / "memory_long_rss.png"
+    p_png = out_dir / "memory_long_rss.png"
+    p_pdf = out_dir / "memory_long_rss.pdf"
     fig.tight_layout()
-    fig.savefig(p, dpi=180)
+    fig.savefig(p_png, dpi=180)
+    fig.savefig(p_pdf)
     plt.close(fig)
-    plot_paths.append(str(p.relative_to(ROOT)))
+    plot_paths.append(str(p_png.relative_to(ROOT)))
+    plot_paths.append(str(p_pdf.relative_to(ROOT)))
 
     # Downstream pass-rate plot
     precisions = ["f16", "q8_0", "q4_k_m", "q4_k_s"]

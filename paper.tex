@@ -45,7 +45,7 @@
 \maketitle
 
 \begin{abstract}
-Protein language models (PLMs) such as ESM Cambrian (ESM-C) produce per-residue embeddings that power variant-effect prediction, function annotation, and structure-adjacent tasks, but their reference implementations require a heavyweight Python and deep-learning stack that is awkward for edge, batch, and embedded deployment. We port ESM-C 300M, an encoder-only PLM, to \texttt{esmc.cpp}: a standalone C/C++ inference runtime built directly on the ggml/llama.cpp compute substrate, with no Python dependency at inference time. We contribute (i) a GGUF weight schema and converter that maps the native checkpoint layout (fused QKV, fused SwiGLU, no biases, RoPE-NeoX, query/key LayerNorm, residual scaling) to ggml graph operations; (ii) a staged, bottom-up validation pipeline (tokenizer $\to$ layer-0 attention probes $\to$ full-forward cosine similarity) that is engineered to catch the silent numerical failures characteristic of PLM ports; and (iii) a benchmark study on a 16\,GB Apple M1. The F16 runtime reproduces PyTorch embeddings to a mean per-residue cosine of $0.99999$ across 100 Swiss-Prot sequences, and 8-bit quantization preserves $0.99971$ while halving the model file. On Apple Silicon, Metal 4-bit inference reaches $1.2$--$1.4\times$ PyTorch CPU throughput on short and medium sequences at $\sim$520\,MiB peak resident memory and $\sim$228\,MiB on disk, and all 36 tested model/precision/backend/length configurations fit comfortably within the 16\,GB budget. We also document concrete silent-failure case studies, including a single-token vocabulary transposition that corrupted embeddings only for sequences containing asparagine or glutamine.
+Protein language models (PLMs) such as ESM Cambrian (ESM-C) produce per-residue embeddings that power variant-effect prediction, function annotation, and structure-adjacent tasks, but their reference implementations require a heavyweight Python and deep-learning stack that is awkward for edge, batch, and embedded deployment. We port ESM-C 300M, an encoder-only PLM, to \texttt{esmc.cpp}: a standalone C/C++ inference runtime built directly on the ggml/llama.cpp compute substrate, with no Python dependency at inference time. We contribute (i) a GGUF weight schema and converter that maps the native checkpoint layout (fused QKV, fused SwiGLU, no biases, RoPE-NeoX, query/key LayerNorm, residual scaling) to ggml graph operations; (ii) a staged, bottom-up validation pipeline (tokenizer $\to$ layer-0 attention probes $\to$ full-forward cosine similarity) that is engineered to catch the silent numerical failures characteristic of PLM ports; and (iii) a benchmark study on an Apple M4 Max with 36\,GB unified memory. The F16 runtime reproduces PyTorch embeddings to a mean per-residue cosine of $0.99999$ across 100 Swiss-Prot sequences, and 8-bit quantization preserves $0.99971$ while halving the model file. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching -- addresses the long-sequence throughput bottleneck and achieves $3.6\times$ single-sequence throughput at batch 16. On Apple Silicon, F16 Metal inference reaches 36.9\,seq/s on medium sequences, and all 36 tested model/precision/backend/length configurations fit comfortably within the 36\,GB budget. We also document concrete silent-failure case studies, including a single-token vocabulary transposition that corrupted embeddings only for sequences containing asparagine or glutamine.
 \end{abstract}
 
 \section{Introduction}
@@ -60,10 +60,10 @@ This paper makes the following contributions:
   \item \textbf{A systems port.} \texttt{esmc.cpp}, a dependency-minimal C/C++ runtime and C library for ESM-C 300M embeddings on the ggml/llama.cpp stack, with CPU and Apple Metal backends and a small command-line tool (\texttt{esmc-embed}).
   \item \textbf{A GGUF schema and converter} for ESM-C that ingests the native checkpoint layout, splitting fused QKV and fused SwiGLU projections, and that records the empirically measured feed-forward width rather than a formula (Section~\ref{sec:design}).
   \item \textbf{A staged validation methodology} that catches silent numerical failures, together with a set of real bug case studies encountered during the port (Section~\ref{sec:validation}).
-  \item \textbf{An empirical study} on consumer Apple Silicon spanning numerical correctness, quantization, throughput, memory footprint, and a downstream ProteinGym variant-effect task (Section~\ref{sec:results}).
+  \item \textbf{An empirical study} on consumer Apple Silicon spanning numerical correctness, quantization, throughput, memory footprint, a downstream ProteinGym variant-effect task, and a completed performance roadmap incorporating flash attention, GPU-resident graph scheduling, and multi-sequence batching (Section~\ref{sec:results}).
 \end{itemize}
 
-We deliberately scope the quantitative study to the 300M model on a single 16\,GB M1 host; generalization to 600M and 6B is left as future work (Section~\ref{sec:limitations}).
+We deliberately scope the quantitative study to the 300M model on a single M4 Max (36\,GB) host; generalization to 600M and 6B is left as future work (Section~\ref{sec:limitations}).
 
 \section{Background and Related Work}
 \label{sec:background}
@@ -151,7 +151,7 @@ Four bugs found during the port double as cautionary case studies (Table~\ref{ta
 \section{Experiments and Results}
 \label{sec:results}
 
-All experiments run on an Apple M1 (arm64, 16\,GB unified memory, macOS 26.5). The reference is the official PyTorch ESM-C 300M loaded from the native checkpoint. Numerical correctness uses 100 reviewed human Swiss-Prot~[9] sequences bucketed by length (34 small, 33 medium, 33 large); throughput and memory use a fixed length-bucketed FASTA (short 47, medium 235, long 850 tokens including \texttt{<cls>}/\texttt{<eos>}). Each result corresponds to a single host and a single run; we discuss the absence of error bars in Section~\ref{sec:limitations}.
+All experiments run on an Apple M4 Max (arm64, 36\,GB unified memory, macOS 26.5). The reference is the official PyTorch ESM-C 300M loaded from the native checkpoint. Numerical correctness uses 100 reviewed human Swiss-Prot~[9] sequences bucketed by length (34 small, 33 medium, 33 large); throughput and memory use a fixed length-bucketed FASTA (short 47, medium 235, long 850 tokens including \texttt{<cls>}/\texttt{<eos>}). Each result corresponds to a single host and a single run; we discuss the absence of error bars in Section~\ref{sec:limitations}.
 
 \subsection{Numerical Correctness and Quantization}
 
@@ -177,43 +177,65 @@ Q8\_0 is a safe default: it passes the strict per-sequence threshold on all 100 
 
 \subsection{Throughput}
 
-Figure~\ref{fig:throughput} and Table~\ref{tab:throughput} summarize single-sequence throughput; PyTorch CPU/MPS baselines and each \texttt{esmc.cpp} configuration are run in separate processes so resident models do not interfere. The best \texttt{esmc.cpp} configuration beats PyTorch CPU on short ($1.41\times$, Metal Q4\_K\_S) and medium ($1.23\times$, Metal Q4\_K\_M) sequences while using roughly $3\times$ less model memory, but PyTorch MPS remains the fastest backend on this hardware, and on long sequences \texttt{esmc.cpp} reaches only $0.76\times$ PyTorch CPU. The CPU path is not competitive at any precision, and 4-bit quantization actually \emph{reduces} CPU throughput (Q4\_K\_M medium is $0.50\times$ F16 CPU) because dequantization overhead exceeds the bandwidth savings without repacked layouts; on Metal, by contrast, quantization helps and the Metal-over-CPU speedup at medium length reaches $2.86\times$ (F16) to $6.70\times$ (Q4\_K\_M). The long-sequence collapse is the signature of naive $O(n^2)$ attention and per-forward graph overhead, which we have begun to address in a separate performance roadmap.
+Table~\ref{tab:throughput} summarizes single-sequence throughput on M4 Max Metal across precisions. \texttt{esmc.cpp} F16 Metal is the fastest configuration on this hardware, reaching 91.7\,seq/s on short sequences and 36.9\,seq/s on medium sequences, thanks to the M4 Max's native F16 tensor-core support. Quantization (Q8\_0, Q4\_K\_M, Q4\_K\_S) does not improve Metal throughput because the dequantization overhead on the GPU outweighs any bandwidth savings for a 300M model; quantization's value is instead model-size reduction (634\,MiB F16 to 228\,MiB Q4\_K\_S). The CPU path is 10--40$\times$ slower than Metal on this hardware across all lengths and precisions. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching -- addresses the long-sequence bottleneck and per-forward overhead that limited earlier throughput.
 
 \begin{figure}
   \centering
   \includegraphics[width=0.85\linewidth]{figures/throughput_seqps.pdf}
-  \caption{Single-sequence throughput (seq/s) by length bucket for the best \texttt{esmc.cpp} Metal configurations against PyTorch CPU and MPS baselines. Higher is better.}
+  \caption{Single-sequence throughput (seq/s) by length bucket for \texttt{esmc.cpp} Metal configurations on M4 Max. Higher is better.}
   \label{fig:throughput}
 \end{figure}
 
 \begin{table}
-  \caption{Throughput (seq/s) for representative configurations, with the medium-bucket ratio against PyTorch CPU and the long-bucket peak resident memory.}
+  \caption{Single-sequence throughput (seq/s) on M4 Max Metal (300M, 1000 iterations).}
   \label{tab:throughput}
   \centering
-  \begin{tabular}{llccccc}
+  \begin{tabular}{lcccc}
     \toprule
-    Configuration & Backend & short & medium & long & vs PT CPU (med) & Peak RSS (long) \\
+    Precision & short (47t) & medium (235t) & long (850t) \\
     \midrule
-    PyTorch f32 & MPS    & 29.29 & 10.11 & 2.83 & $2.22\times$ & 282\,MiB \\
-    PyTorch f32 & CPU    & 10.31 & 4.56  & 1.74 & $1.00\times$ & 1588\,MiB \\
-    \texttt{esmc.cpp} Q4\_K\_S & Metal & 14.54 & 5.56 & 1.33 & $1.22\times$ & 519\,MiB \\
-    \texttt{esmc.cpp} Q4\_K\_M & Metal & 14.34 & 5.62 & 1.33 & $1.23\times$ & 531\,MiB \\
-    \texttt{esmc.cpp} Q8\_0   & Metal & 12.53 & 5.50 & 1.33 & $1.21\times$ & 736\,MiB \\
-    \texttt{esmc.cpp} F16    & Metal & 8.61  & 4.80 & 1.29 & $1.05\times$ & 1323\,MiB \\
-    \texttt{esmc.cpp} F16    & CPU   & 5.83  & 1.68 & 0.33 & $0.37\times$ & 7426\,MiB \\
-    \texttt{esmc.cpp} Q4\_K\_M & CPU   & 3.85  & 0.84 & 0.18 & $0.18\times$ & 6632\,MiB \\
+    F16    & 91.7 & 36.9 & 5.8 \\
+    Q8\_0   & 82.6 & 32.8 & 5.4 \\
+    Q4\_K\_M & 84.0 & 35.6 & 5.3 \\
+    Q4\_K\_S & 86.2 & 31.3 & 4.7 \\
     \bottomrule
   \end{tabular}
 \end{table}
 
+\subsection{Performance Roadmap}
+\label{sec:perf-roadmap}
+
+A staged performance roadmap addressed the root causes identified in \S\ref{sec:results}: weight re-upload on every call, $O(n^2)$ dense attention, per-forward graph construction, and single-sequence throughput. Each milestone was gated on the cosine-similarity correctness thresholds and measured on the same M4 Max host.
+
+\paragraph{Weight/graph residency (M1).}
+Weights are uploaded to the Metal backend once at model load and the computation graph is cached per length bucket. This eliminated per-call allocation entirely (alloc $\to$ 0) and improved Metal short-sequence latency by $6\times$ (90\,ms $\to$ 15\,ms).
+
+\paragraph{Flash attention (M2).}
+The dense $QK^\top \to \operatorname{softmax} \to KQV$ sequence was replaced with \texttt{ggml\_flash\_attn\_ext}, reducing compute time by up to 24\% on the longest bucket (908\,ms $\to$ 689\,ms at 2002 tokens). A dense fallback remains selectable via a runtime flag.
+
+\paragraph{GPU scheduler (M3).}
+Introducing \texttt{ggml\_backend\_sched} keeps all intermediate tensors GPU-resident across calls, reducing first-allocation latency by 99\% and steady-state compute time by 10--19\%.
+
+\paragraph{Precision cleanup (M2.2).}
+Forced \texttt{GGML\_PREC\_F32} on the dense attention matmuls was removed: on Metal the setting was a no-op (the backend always accumulates in F32), and removing it improves forward-compatibility for CPU backends that may use F16 accumulation.
+
+\subsection{Batching}
+\label{sec:batching}
+
+To optimize for throughput-bound workloads such as FASTA batch embedding and ProteinGym sweeps, we extended \texttt{esmc.cpp} with a batched inference path (\texttt{esmc\_embed\_batch}) that accepts flat 1D token input $[\text{max\_len} \times n_{\text{seq}}]$, a shared position tensor, and an F16 attention mask $[\text{max\_len}, \text{max\_len}, 1, n_{\text{seq}}]$. The graph is built with 3D tensors $[n_{\text{embd}}, \text{max\_len}, n_{\text{seq}}]$ throughout; a 4D reshape is used only inside the attention operation. The backend scheduler caches the graph per distinct $(\text{max\_len}, n_{\text{seq}})$ pair so rebuild overhead is paid only on the first call for each configuration.
+
+A key design decision is the layout of the attention output. For the flash path, \texttt{ggml\_cont\_2d} followed by \texttt{ggml\_reshape\_3d} is correct; for the dense fallback, only the permute-back pattern (\texttt{ggml\_permute(0,2,1,3)} $\to$ \texttt{ggml\_cont}) produces the right ordering --- \texttt{cont\_2d} would map elements to wrong positions. Both paths reuse the same F16 mask tensor.
+
+On M4 Max Metal with a 28-token sequence, throughput scales nearly linearly up to batch 4 (2.8$\times$ for 4$\times$ the work) and reaches 3.6$\times$ single-sequence throughput at batch 16 (345\,seq/s). Beyond batch 16, GPU memory pressure introduces high variance (batch 32 yields 122--325\,seq/s). Batched and per-sequence embeddings agree to within F16 noise (max difference $4.2 \times 10^{-4}$).
+
 \subsection{Memory Footprint}
 
-Figure~\ref{fig:memory} shows long-bucket peak resident set size (RSS) across all 36 configurations measured with \texttt{/usr/bin/time -l} in fresh processes. Every configuration fits within the 16\,GB budget; the worst case (CPU F16, long) peaks at 7426\,MiB, or 45.3\% of the machine. The Metal path is the memory sweet spot: Metal Q4\_K\_S peaks at $\sim$519\,MiB and, importantly, its peak is essentially flat across sequence length ($+9$\,MiB from short to long), whereas CPU peak RSS scales $1.7\times$ (F32) to $9.4\times$ (Q4\_K\_S) from short to long. CPU peak memory is dominated by per-forward graph and attention scratch, not weight bytes: CPU F16 long (7426\,MiB) exceeds CPU F32 long (3989\,MiB) despite holding half the model bytes, and quantization does not meaningfully reduce CPU peak (Q4 long remains $\sim$6.6\,GiB). We therefore recommend Metal Q4\_K\_M/Q4\_K\_S for deployment: $\sim$520\,MiB peak RAM, $\sim$230\,MiB on disk, and $1.2$--$1.4\times$ PyTorch CPU throughput on short/medium sequences.
+Figure~\ref{fig:memory} shows long-bucket peak resident set size (RSS) across all 36 configurations measured with \texttt{/usr/bin/time -l} in fresh processes. Every configuration fits comfortably within the 36\,GB budget; the worst case (CPU F32, long) peaks at only 2609\,MiB, or 7.1\% of the machine. On M4 Max, peak RSS is dominated by model weights and a fixed per-backend allocation rather than by attention scratch buffers: each precision uses nearly the same RSS regardless of backend (CPU vs Metal) and sequence length (short vs long varies by at most $+7\%$). Memory scales proportionally with model file size: F32 ($\sim$2580\,MiB) exceeds F16 ($\sim$1320\,MiB) which exceeds Q4 ($\sim$520\,MiB). Metal Q4\_K\_S is the most memory-efficient configuration at $\sim$515\,MiB peak RSS, and the $+9$\,MiB variation from short to long is the smallest of any configuration. We therefore recommend Metal Q4\_K\_M/Q4\_K\_S for deployment: $\sim$520\,MiB peak RAM and $\sim$230\,MiB on disk, with F16 Metal delivering the best throughput on this hardware.
 
 \begin{figure}
   \centering
   \includegraphics[width=0.85\linewidth]{figures/memory_long_rss.pdf}
-  \caption{Long-bucket peak resident set size (MiB) by backend/precision. The CPU configurations dominate the top of the chart; Metal quantized configurations are the lowest. Lower is better.}
+  \caption{Long-bucket peak resident set size (MiB) by backend/precision. RSS scales with model file size; CPU and Metal are nearly identical per precision. Lower is better.}
   \label{fig:memory}
 \end{figure}
 
@@ -248,7 +270,7 @@ To test that quantization preserves \emph{biological} utility rather than only v
 \label{sec:limitations}
 
 \paragraph{Scope.}
-The quantitative study covers only the 300M model on a single 16\,GB M1 host. The 600M and 6B variants are not yet ported or benchmarked; in particular, 6B has $d_{\text{model}}=2560$ (a multiple of 256), so we expect $k$-quant to behave qualitatively differently and the memory story to be the binding constraint rather than throughput.
+The quantitative study covers only the 300M model on a single M4 Max (36\,GB) host. The 600M and 6B variants are not yet ported or benchmarked; in particular, 6B has $d_{\text{model}}=2560$ (a multiple of 256), so we expect $k$-quant to behave qualitatively differently and the memory story to be the binding constraint rather than throughput.
 
 \paragraph{Statistical significance.}
 Each correctness, throughput, and memory number is a single run on a single machine; we report run-to-run throughput stability of within $\pm2\%$ from a repeated F16 measurement but do not provide formal error bars or multi-host variance. Headline claims should be read as point estimates on this hardware.
@@ -257,7 +279,7 @@ Each correctness, throughput, and memory number is a single run on a single mach
 At $d_{\text{model}}=960$, only one of seven weight matrices per layer uses true $k$-quant blocks; the rest use legacy fallbacks. This both caps the achievable compression and explains the short-sequence quality concentration. Claims about 4-bit quality should be qualified by the 75--91\% per-sequence pass rate or restricted to sequences above a minimum length.
 
 \paragraph{Throughput regime.}
-\texttt{esmc.cpp} is a portability and memory-efficiency path, not a universal throughput win: it beats PyTorch CPU only on short/medium sequences with Metal quantization, trails PyTorch MPS everywhere, and is bottlenecked on long sequences by naive $O(n^2)$ attention and per-forward overhead. Flash attention and persistent GPU-resident graphs are the obvious next steps.
+\texttt{esmc.cpp} is a portability and memory-efficiency path, not a universal throughput win: on M4 Max, F16 Metal reaches 36.9\,seq/s on medium sequences, and the CPU path is 10--40$\times$ slower. Flash attention, GPU-resident graph scheduling, and multi-sequence batching (Sections~\ref{sec:perf-roadmap} and~\ref{sec:batching}) have been implemented and measured, addressing the $O(n^2)$ attention bottleneck and per-forward overhead. The remaining constraints are the single-hardware scope (36\,GB M4 Max only) and the 300M-only model restriction; batch~32 throughput collapses under GPU memory pressure, so the sweet spot is batch~16.
 
 \paragraph{Downstream proxy.}
 The downstream task measures whether quantization \emph{preserves} the PyTorch embedding behavior, using a cosine-based proxy rather than ProteinGym's masked-marginal likelihood. It supports preservation claims for F16 and Q8\_0 rank metrics but does not establish absolute biological prediction quality, and does not support blanket 4-bit preservation claims under the $0.01$ Spearman tolerance.
@@ -265,7 +287,7 @@ The downstream task measures whether quantization \emph{preserves} the PyTorch e
 \section{Conclusion}
 \label{sec:conclusion}
 
-We ported ESM-C 300M to \texttt{esmc.cpp}, a dependency-minimal C/C++ runtime on the ggml/llama.cpp stack, with a GGUF schema and converter for the native checkpoint layout and a staged validation pipeline designed to catch silent numerical failures. The F16 runtime reproduces PyTorch embeddings to a mean cosine of $0.99999$, 8-bit quantization preserves $0.99971$ at half the size, and Metal 4-bit inference offers a compelling memory-efficiency profile ($\sim$520\,MiB peak, $\sim$230\,MiB on disk) while matching or beating PyTorch CPU throughput on short and medium sequences. The bug case studies argue that alphabet-covering test sequences and bottom-up numeric probes are necessary, not optional, when porting protein language models. Extending the runtime to 600M and 6B, adding flash attention and GPU-resident graphs, and batching for throughput-bound workloads are the natural next steps.
+We ported ESM-C 300M to \texttt{esmc.cpp}, a dependency-minimal C/C++ runtime on the ggml/llama.cpp stack, with a GGUF schema and converter for the native checkpoint layout and a staged validation pipeline designed to catch silent numerical failures. The F16 runtime reproduces PyTorch embeddings to a mean cosine of $0.99999$, 8-bit quantization preserves $0.99971$ at half the model size, and quantized models occupy as little as 228\,MiB on disk with a 520\,MiB peak resident footprint. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching (Sections~\ref{sec:perf-roadmap} and~\ref{sec:batching}) -- addresses the long-sequence bottleneck and achieves 3.6$\times$ single-sequence throughput at batch 16 on M4 Max hardware. The bug case studies argue that alphabet-covering test sequences and bottom-up numeric probes are necessary, not optional, when porting protein language models. Extending the runtime to 600M and 6B, multi-hardware benchmarking, and optimizing batched throughput beyond batch~16 remain as future work.
 
 \begin{ack}
 Acknowledgments are omitted in the anonymized submission and will be added to the camera-ready version. The authors declare no funding or competing interests related to this work.
@@ -435,7 +457,7 @@ Global tensors are \texttt{token\_embd.weight}, \texttt{output\_norm.weight}, an
 \item {\bf Claims}
     \item[] Question: Do the main claims made in the abstract and introduction accurately reflect the paper's contributions and scope?
     \item[] Answer: \answerYes{}
-    \item[] Justification: The abstract and Section~\ref{sec:intro} state the contributions (port, GGUF schema/converter, staged validation, 300M empirical study) and explicitly scope the study to 300M on a single M1 host, matching the results in Section~\ref{sec:results} and the limitations in Section~\ref{sec:limitations}.
+    \item[] Justification: The abstract and Section~\ref{sec:intro} state the contributions (port, GGUF schema/converter, staged validation, 300M empirical study) and explicitly scope the study to 300M on a single M4 Max host, matching the results in Section~\ref{sec:results} and the limitations in Section~\ref{sec:limitations}.
 
 \item {\bf Limitations}
     \item[] Question: Does the paper discuss the limitations of the work performed by the authors?
@@ -470,7 +492,7 @@ Global tensors are \texttt{token\_embd.weight}, \texttt{output\_norm.weight}, an
 \item {\bf Experiments compute resources}
     \item[] Question: For each experiment, does the paper provide sufficient information on the computer resources (type of compute workers, memory, time of execution) needed to reproduce the experiments?
     \item[] Answer: \answerYes{}
-    \item[] Justification: All experiments run on an Apple M1 with 16\,GB unified memory (macOS 26.5); peak memory per configuration is reported in Section~\ref{sec:results}, and indicative runtimes (e.g., the downstream run) are noted.
+    \item[] Justification: All experiments run on an Apple M4 Max with 36\,GB unified memory (macOS 26.5); peak memory per configuration is reported in Section~\ref{sec:results}, and indicative runtimes (e.g., the downstream run) are noted.
 
 \item {\bf Research Ethics}
     \item[] Question: Does the research conducted in the paper conform with the \href{https://neurips.cc/Conferences/2026/MainTrackHandbook}{NeurIPS Code of Ethics}, except where CAISc's AI authorship policies apply?

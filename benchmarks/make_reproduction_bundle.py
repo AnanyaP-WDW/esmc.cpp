@@ -39,8 +39,8 @@ MODELS_DIR = ROOT / "models"
 
 # Default inputs (latest measured artifacts from the experiment log).
 DEFAULT_CORRECTNESS = RESULTS / "correctness_300m.csv"
-DEFAULT_THROUGHPUT = RESULTS / "throughput_Ananyas-MacBook-Pro_20260530_140618.csv"
-DEFAULT_MEMORY = RESULTS / "memory_Ananyas-MacBook-Pro_20260531_013718.csv"
+DEFAULT_THROUGHPUT = RESULTS / "throughput_m4_max.csv"
+DEFAULT_MEMORY = RESULTS / "memory_m4_max_20260626_153823.csv"
 DEFAULT_DOWNSTREAM = RESULTS / "downstream_300m_10k.csv"
 DEFAULT_OUT_DIR = RESULTS / "reproduction_bundle"
 
@@ -198,12 +198,10 @@ def throughput_summary(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
 
 
 def throughput_table(summary: list[dict[str, Any]], out_dir: Path) -> dict[str, str]:
-    headers = ["Bucket", "Tokens", "Best esmc.cpp", "seq/s", "PT CPU", "PT MPS", "vs CPU", "vs MPS"]
+    headers = ["Bucket", "Tokens", "Best esmc.cpp", "seq/s"]
     rows = [[
         s["bucket"], str(s["tokens"]), s["best_config"],
-        fmt(s["best_seq_per_s"], 2), fmt(s["pt_cpu_seq_per_s"], 2),
-        fmt(s["pt_mps_seq_per_s"], 2),
-        f"{fmt(s['vs_pt_cpu'], 2)}x", f"{fmt(s['vs_pt_mps'], 2)}x",
+        fmt(s["best_seq_per_s"], 2),
     ] for s in summary]
     return write_table(
         out_dir, "throughput_summary",
@@ -230,14 +228,14 @@ def memory_summary(rows: list[dict[str, str]]) -> list[dict[str, Any]]:
 
 
 def memory_table(summary: list[dict[str, Any]], out_dir: Path) -> dict[str, str]:
-    headers = ["Config (long bucket)", "Peak RSS (MiB)", "Model file (MiB)", "<=16 GiB"]
+    headers = ["Config (long bucket)", "Peak RSS (MiB)", "Model file (MiB)", "<=36 GiB"]
     rows = [[
         s["config"], fmt(s["peak_rss_mib"], 0), fmt(s["model_file_mib"], 0),
         "yes" if s["budget_pass"] == "True" else "no",
     ] for s in summary]
     return write_table(
         out_dir, "memory_summary",
-        "Peak resident memory on a 16 GiB M1 (300M, long bucket)",
+        "Peak resident memory on a 36 GB M4 Max (300M, long bucket)",
         "tab:memory", headers, rows,
     )
 
@@ -312,7 +310,7 @@ def make_plots(
     )
     paths.append(str(p.relative_to(ROOT)))
 
-    # Throughput best esmc.cpp vs PyTorch baselines.
+    # Throughput best esmc.cpp (M4 Max; PyTorch baselines not re-benchmarked).
     p = out_dir / "throughput_seqps.svg"
     write_svg_grouped_bar_chart(
         path=p,
@@ -320,8 +318,6 @@ def make_plots(
         x_labels=[s["bucket"] for s in throughput],
         series=[
             ("best esmc.cpp", [s["best_seq_per_s"] for s in throughput]),
-            ("PyTorch MPS", [s["pt_mps_seq_per_s"] for s in throughput]),
-            ("PyTorch CPU", [s["pt_cpu_seq_per_s"] for s in throughput]),
         ],
         y_label="seq/s",
     )
@@ -331,7 +327,7 @@ def make_plots(
     p = out_dir / "memory_long_rss.svg"
     write_svg_grouped_bar_chart(
         path=p,
-        title="Peak RSS on 16 GiB M1 (300M, long bucket)",
+        title="Peak RSS on 36 GB M4 Max (300M, long bucket)",
         x_labels=[s["config"] for s in memory],
         series=[("peak RSS (MiB)", [s["peak_rss_mib"] for s in memory])],
         y_label="MiB",
@@ -448,8 +444,7 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
 
     thr_rows = [[
         s["bucket"], str(s["tokens"]), s["best_config"],
-        fmt(s["best_seq_per_s"], 2), fmt(s["pt_cpu_seq_per_s"], 2),
-        fmt(s["pt_mps_seq_per_s"], 2), f"{fmt(s['vs_pt_cpu'], 2)}x",
+        fmt(s["best_seq_per_s"], 2),
     ] for s in throughput]
 
     down_rows = [[
@@ -470,7 +465,7 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
             f"{fmt(best_mem['peak_rss_mib'], 0)} MiB (long sequences).",
             f"- Highest peak RAM: `{worst_mem['config']}` at "
             f"{fmt(worst_mem['peak_rss_mib'], 0)} MiB.",
-            f"- All {n_pass}/{len(memory)} measured configurations fit within a 16 GiB machine.",
+            f"- All {n_pass}/{len(memory)} measured configurations fit within a 36 GB machine.",
         ]
 
     example_seq = "MKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGY"
@@ -566,7 +561,7 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
         "",
         "## Benchmarks (300M)",
         "",
-        "Measured on an Apple M1 (16 GB) against the official PyTorch ESM-C 300M. Full "
+        "Measured on an Apple M4 Max (36 GB) against the official PyTorch ESM-C 300M. Full "
         f"methodology and per-sequence data are in the [esmc.cpp repository]({GITHUB_REPO}).",
         "",
         "### Numerical fidelity vs PyTorch (per-residue cosine, 100 Swiss-Prot sequences)",
@@ -580,15 +575,14 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
         "F16 and Q8_0 clear per-sequence mean cosine > 0.999; Q4_K_M / Q4_K_S clear the "
         "aggregate > 0.995 (4-bit misses concentrate in very short sequences).",
         "",
-        "### Throughput (seq/s, best esmc.cpp config vs PyTorch)",
+        "### Throughput (seq/s, best esmc.cpp config)",
         "",
         md_table(
-            ["Bucket", "Tokens", "Best esmc.cpp", "seq/s", "PyTorch CPU",
-             "PyTorch MPS", "vs CPU"],
+            ["Bucket", "Tokens", "Best esmc.cpp", "seq/s"],
             thr_rows,
         ),
         "",
-        "### Peak memory (long sequences, 16 GiB budget)",
+        "### Peak memory (long sequences, 36 GB budget)",
         "",
         *mem_lines,
         "",
@@ -623,7 +617,9 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
         "## Reproduce",
         "",
         f"The full replication guide (convert, quantize, validate, benchmark) is in the "
-        f"[esmc.cpp README]({GITHUB_REPO}#reproduce-the-paper-results-300m-end-to-end).",
+        f"[esmc.cpp README]({GITHUB_REPO}#reproduce-the-paper-results-300m-end-to-end). "
+        f"The [lab manual]({GITHUB_REPO}/blob/main/lab_manual.md) documents every "
+        f"experiment (EXP-001 through EXP-022) with commands, raw results, and run logs.",
         "",
         "## License",
         "",
@@ -788,7 +784,7 @@ def main() -> int:
     if worst_mem:
         readme.append(
             f"- Worst-case peak RSS (long bucket): {worst_mem['config']} = "
-            f"{fmt(worst_mem['peak_rss_mib'], 0)} MiB (16 GiB budget)"
+            f"{fmt(worst_mem['peak_rss_mib'], 0)} MiB (36 GB budget)"
         )
     readme += [
         "",
