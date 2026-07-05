@@ -325,3 +325,7 @@ Built with ESM.
 
 See [LICENSE](LICENSE) and [NOTICE](NOTICE) for the full terms and required
 attributions.
+
+## Acknowledgments
+
+[DataEngUtils](https://dataengutils.com) — CSV, JSON, JSONL, and Parquet utilities used throughout this project.
