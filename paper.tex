@@ -8,8 +8,8 @@
 
 \documentclass{article}
 
-% ready for submission (anonymized, line numbers)
-\usepackage{caisc_2026}
+% camera-ready (final: de-anonymized, no line numbers)
+\usepackage[final]{caisc_2026}
 
 \usepackage[utf8]{inputenc} % allow utf-8 input
 \usepackage[T1]{fontenc}    % use 8-bit T1 fonts
@@ -32,12 +32,13 @@
 
 \title{esmc.cpp: A Zero-Dependency, Metal-Accelerated C/C++ Runtime for ESM Cambrian Protein Embeddings}
 
-% Anonymized submission: author block is hidden by the style file in the
-% default mode. A placeholder is kept here per template instructions.
 \author{%
-  Anonymous Author(s)\\
-  Affiliation withheld for double-blind review\\
-  \texttt{anonymous@example.org}\\
+  Ananya Pathak\textsuperscript{1} \And
+  Anagh Pathak\textsuperscript{2} \And
+  Sakshi Sharma\textsuperscript{1} \\
+  \textsuperscript{1}\url{https://ananyapathak.xyz} \\
+  \textsuperscript{2}Université de Strasbourg \\
+  \texttt{pathakananya95@gmail.com, a.pathak@unistra.fr, sak5shi.sharma93@gmail.com} \\
 }
 
 \begin{document}
@@ -45,7 +46,7 @@
 \maketitle
 
 \begin{abstract}
-Protein language models (PLMs) such as ESM Cambrian (ESM-C) produce per-residue embeddings that power variant-effect prediction, function annotation, and structure-adjacent tasks, but their reference implementations require a heavyweight Python and deep-learning stack that is awkward for edge, batch, and embedded deployment. We port ESM-C 300M, an encoder-only PLM, to \texttt{esmc.cpp}: a standalone C/C++ inference runtime built directly on the ggml/llama.cpp compute substrate, with no Python dependency at inference time. We contribute (i) a GGUF weight schema and converter that maps the native checkpoint layout (fused QKV, fused SwiGLU, no biases, RoPE-NeoX, query/key LayerNorm, residual scaling) to ggml graph operations; (ii) a staged, bottom-up validation pipeline (tokenizer $\to$ layer-0 attention probes $\to$ full-forward cosine similarity) that is engineered to catch the silent numerical failures characteristic of PLM ports; and (iii) a benchmark study on an Apple M4 Max with 36\,GB unified memory. The F16 runtime reproduces PyTorch embeddings to a mean per-residue cosine of $0.99999$ across 100 Swiss-Prot sequences, and 8-bit quantization preserves $0.99971$ while halving the model file. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching -- addresses the long-sequence throughput bottleneck and achieves $3.6\times$ single-sequence throughput at batch 16. On Apple Silicon, F16 Metal inference reaches 36.9\,seq/s on medium sequences, and all 36 tested model/precision/backend/length configurations fit comfortably within the 36\,GB budget. We also document concrete silent-failure case studies, including a single-token vocabulary transposition that corrupted embeddings only for sequences containing asparagine or glutamine.
+Protein language models (PLMs) such as ESM Cambrian (ESM-C) produce per-residue embeddings that power variant-effect prediction, function annotation, and structure-adjacent tasks, but their reference implementations require a heavyweight Python and deep-learning stack that is awkward for edge, batch, and embedded deployment. We port ESM-C 300M, an encoder-only PLM, to \texttt{esmc.cpp}: a standalone C/C++ inference runtime built directly on the ggml/llama.cpp compute substrate, with no Python dependency at inference time. We contribute (i) a GGUF weight schema and converter that maps the native checkpoint layout (fused QKV, fused SwiGLU, biases confined to the pre-QKV LayerNorm, RoPE-NeoX, query/key LayerNorm, residual scaling) to ggml graph operations; (ii) a staged, bottom-up validation pipeline (tokenizer $\to$ layer-0 attention probes $\to$ full-forward cosine similarity) that is engineered to catch the silent numerical failures characteristic of PLM ports; and (iii) a benchmark study on an Apple M4 Max with 36\,GB unified memory. The F16 runtime reproduces PyTorch embeddings to a mean per-residue cosine of $0.99999$ across 100 Swiss-Prot sequences, and 8-bit quantization preserves $0.99971$ while halving the model file. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching -- addresses the long-sequence throughput bottleneck and achieves $3.6\times$ single-sequence throughput at batch 16. On Apple Silicon, F16 Metal inference reaches 36.9\,seq/s on medium sequences, and all 36 tested model/precision/backend/length configurations fit comfortably within the 36\,GB budget. We also document concrete silent-failure case studies, including a single-token vocabulary transposition that corrupted embeddings only for sequences containing asparagine or glutamine.
 \end{abstract}
 
 \section{Introduction}
@@ -53,7 +54,7 @@ Protein language models (PLMs) such as ESM Cambrian (ESM-C) produce per-residue 
 
 Protein language models trained with masked language modeling over hundreds of millions to billions of clustered sequences have become a default featurizer for computational biology. ESM Cambrian (ESM-C)~[1] is a recent encoder-only family (300M, 600M, 6B parameters) whose single forward pass yields per-residue embeddings with no autoregressive loop and no growing key/value cache. The official runtime, however, is a PyTorch stack: deploying it on a laptop, an offline batch node, or an embedded system means shipping Python, PyTorch, and a constellation of CUDA/Metal dependencies, which is at odds with reproducibility, cold-start latency, and resource-constrained inference.
 
-The llama.cpp project and its ggml tensor library~[6] have demonstrated that decoder-only language models can be run efficiently as a single self-contained binary with on-disk quantization via the GGUF format~[7]. We ask whether the same engineering discipline transfers to a \emph{bidirectional, encoder-only} protein model, and at what cost to numerical fidelity. This is not a mechanical exercise: ESM-C differs from the widely ported ESM2 family~[2] in several details (SwiGLU instead of GELU, no biases anywhere, RoPE-only positions, a wider context, and a non-standard feed-forward width), and any one of these, if mis-implemented, produces embeddings that are numerically plausible but biologically wrong without raising an error.
+The llama.cpp project and its ggml tensor library~[6] have demonstrated that decoder-only language models can be run efficiently as a single self-contained binary with on-disk quantization via the GGUF format~[7]. We ask whether the same engineering discipline transfers to a \emph{bidirectional, encoder-only} protein model, and at what cost to numerical fidelity. This is not a mechanical exercise: ESM-C differs from the widely ported ESM2 family~[2] in several details (SwiGLU instead of GELU, biases only on the pre-QKV LayerNorm, RoPE-only positions, a wider context, and a non-standard feed-forward width), and any one of these, if mis-implemented, produces embeddings that are numerically plausible but biologically wrong without raising an error.
 
 This paper makes the following contributions:
 \begin{itemize}
@@ -69,7 +70,7 @@ We deliberately scope the quantitative study to the 300M model on a single M4 Ma
 \label{sec:background}
 
 \paragraph{ESM-C versus ESM2.}
-ESM-C is an encoder-only transformer with pre-LayerNorm~[5] blocks, rotary position embeddings (RoPE)~[3], and a gated SwiGLU~[4] feed-forward network. Relative to ESM2~[2], the architectural deltas that govern correctness are summarized in Table~\ref{tab:esm2-vs-esmc}. The most consequential are the replacement of the GELU two-matrix FFN with a three-matrix SwiGLU FFN, the complete absence of biases, RoPE-only positional encoding in the NeoX rotation style, and a feed-forward width of approximately $\nicefrac{8}{3}\,d_{\text{model}}$ rather than $4\,d_{\text{model}}$.
+ESM-C is an encoder-only transformer with pre-LayerNorm~[5] blocks, rotary position embeddings (RoPE)~[3], and a gated SwiGLU~[4] feed-forward network. Relative to ESM2~[2], the architectural deltas that govern correctness are summarized in Table~\ref{tab:esm2-vs-esmc}. The most consequential are the replacement of the GELU two-matrix FFN with a three-matrix SwiGLU FFN, biases being confined to the pre-QKV LayerNorm, RoPE-only positional encoding in the NeoX rotation style, and a feed-forward width of approximately $\nicefrac{8}{3}\,d_{\text{model}}$ rather than $4\,d_{\text{model}}$.
 
 \begin{table}
   \caption{Architectural deltas between ESM2 and ESM-C that determine port correctness.}
@@ -110,7 +111,7 @@ There is no pre-encoder or wrap-around LayerNorm, and no token dropout, both of 
 
 \subsection{GGUF Conversion}
 
-The native 300M checkpoint stores fused projections under \texttt{esmc.*} keys rather than the HuggingFace \texttt{model.layers.*} layout. Our converter (i) splits the fused QKV weight into \texttt{attn\_q/k/v}, (ii) splits the fused SwiGLU \texttt{fc1\_weight} into \texttt{ffn\_gate} and \texttt{ffn\_up}, (iii) preserves the pre-QKV LayerNorm weight \emph{and bias} and the per-projection query/key LayerNorm weights, and (iv) reads the feed-forward width directly from the tensor shape and writes it to the GGUF metadata key \texttt{esmc.feed\_forward\_length} (2560) instead of computing it from a formula. LayerNorm weights are stored in F32 regardless of the quantization target. The 300M model maps to 363 tensors (3 global plus 9 per layer $\times$ 30). The full architecture is recorded as GGUF metadata (\texttt{esmc.block\_count}, \texttt{esmc.embedding\_length}, \texttt{esmc.attention.head\_count}, \texttt{esmc.rope.freq\_base}, etc.) so that the C++ loader is data-driven.
+The native 300M checkpoint stores fused projections under \texttt{esmc.*} keys rather than the HuggingFace \texttt{model.layers.*} layout. Our converter (i) splits the fused QKV weight into \texttt{attn\_q/k/v}, (ii) splits the fused SwiGLU \texttt{fc1\_weight} into \texttt{ffn\_gate} and \texttt{ffn\_up}, (iii) preserves the pre-QKV LayerNorm weight \emph{and bias} and the per-projection query/key LayerNorm weights, and (iv) reads the feed-forward width directly from the tensor shape and writes it to the GGUF metadata key \texttt{esmc.feed\_forward\_length} (2560) instead of computing it from a formula. LayerNorm weights are stored in F32 regardless of the quantization target. The 300M model maps to 363 tensors (3 global plus 12 per layer $\times$ 30: 4 attention projections, 2 attention-norm (weight + bias), 2 query/key-norm, 1 FFN-norm, 3 FFN projections). The full architecture is recorded as GGUF metadata (\texttt{esmc.block\_count}, \texttt{esmc.embedding\_length}, \texttt{esmc.attention.head\_count}, \texttt{esmc.rope.freq\_base}, etc.) so that the C++ loader is data-driven.
 
 \subsection{Inference Graph and Tokenizer}
 
@@ -290,7 +291,8 @@ The downstream task measures whether quantization \emph{preserves} the PyTorch e
 We ported ESM-C 300M to \texttt{esmc.cpp}, a dependency-minimal C/C++ runtime on the ggml/llama.cpp stack, with a GGUF schema and converter for the native checkpoint layout and a staged validation pipeline designed to catch silent numerical failures. The F16 runtime reproduces PyTorch embeddings to a mean cosine of $0.99999$, 8-bit quantization preserves $0.99971$ at half the model size, and quantized models occupy as little as 228\,MiB on disk with a 520\,MiB peak resident footprint. A completed performance roadmap -- flash attention, GPU-resident graph scheduling, and multi-sequence batching (Sections~\ref{sec:perf-roadmap} and~\ref{sec:batching}) -- addresses the long-sequence bottleneck and achieves 3.6$\times$ single-sequence throughput at batch 16 on M4 Max hardware. The bug case studies argue that alphabet-covering test sequences and bottom-up numeric probes are necessary, not optional, when porting protein language models. Extending the runtime to 600M and 6B, multi-hardware benchmarking, and optimizing batched throughput beyond batch~16 remain as future work.
 
 \begin{ack}
-Acknowledgments are omitted in the anonymized submission and will be added to the camera-ready version. The authors declare no funding or competing interests related to this work.
+The DataEngUtils macOS application provided the CSV, JSON, JSONL, and Parquet utilities used throughout this project.
+The authors declare no funding or competing interests related to this work.
 \end{ack}
 
 \section*{References}
