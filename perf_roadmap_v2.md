@@ -90,12 +90,17 @@ on the recommended hardware. V2+V3 are the biggest *real-world* throughput lever
 | M-F | Graph hygiene: fold scales into weights, drop dead lm_head | S | Low | All buckets (small, free) |
 | M-G | Exploratory: quantized Metal matmul / repacking | M | Med | Memory-bound, low ROI |
 | M-H | Scaling & concurrency: 600M/6B + multi-stream; arch-port decision | XL | High | Long-term |
+| M-J | Native ProteinGym scoring (PABP, ~1.4k variants) | M–L | Med | Downstream claim strength |
+| M-K | Quantization structural analysis (true k-quant audit) | S–M | Low | Quant precision story |
+| M-L | Productize staged validation pipeline as reusable artifact | S–M | Low | Methodological contribution |
 
 Effort: S ≤ 1 day, M ≈ 2–4 days, L ≈ 1–2 weeks, XL ≈ multi-week.
 
-**Dependency order:** M-F (free, do first) → M-A → M-B → (M-C, M-D parallel) →
-M-E → M-G → M-H. M-A should land early because every later throughput number
-depends on whether activations are F16 or F32.
+**Dependency order (throughput track):** M-F (conditional lm_head — see M-J) → M-A → M-B → (M-C ∥ M-D) → M-E → M-G → M-H.
+
+**Parallel correctness/evaluation track:** M-L → M-J → M-K (M-K's 6B audit nests under M-H). This track does not block the throughput track.
+
+M-A should land early because every later throughput number depends on whether activations are F16 or F32.
 
 ---
 
@@ -114,8 +119,11 @@ polluted by trivially-removable ops.
 - **Fold `1/√head_dim` into `wq`.** Pre-scale `layer.wq` at load so the per-layer
   `ggml_scale(Q, …)` (`:161`, `:355`) disappears. (Keep the explicit scale only on
   the debug `--check-layer0-qk` path, which reads Q pre-attention.)
-- **Drop the dead `output.weight` load** (V8) when no scoring API is active:
-  skip it in `esmc_load_tensors`/the `model->buf` copy. Saves load time + RSS.
+- **Drop the dead `output.weight` load** (V8) when no scoring API is active and
+  M-J is not on the roadmap: skip it in `esmc_load_tensors`/the `model->buf` copy.
+  Conditional: keep `output.weight` resident if M-J (native ProteinGym scoring) is
+  planned — the scoring path needs the lm_head. Gate via a build flag
+  (`ESMC_NO_SCORING`) rather than a runtime check.
 
 **Caveat.** Folding into *quantized* weights must happen on the dequantized
 values or be applied as a separate F32 scale vector — pre-multiplying a Q4_K block
@@ -372,6 +380,123 @@ work: 600M/6B bring-up, multi-hardware, and concurrent streams.
 - [ ] Multi-context concurrency benchmark: aggregate seq/s with 2–4 contexts vs 1.
 - [ ] Written go/no-go on the arch port in `lab_manual.md`, citing M-A…M-E ratios.
 - [ ] If go: a scoped sub-plan with its own milestones and exit gates.
+- [ ] Throughput numbers reproduced on a second Apple Silicon tier (different from M4 Max) with N≥3 runs, variance reported.
+- [ ] M-K's 6B k-quant structural audit (§5 M-K) completed as part of the 6B bring-up sub-plan.
+
+---
+
+### M-J — Native ProteinGym scoring (parallel evaluation track)
+
+**Goal.** Replace the cosine-proxy downstream evaluation with task-native
+masked-marginal likelihood scoring on a ProteinGym DMS assay, addressing the
+most-cited reviewer weakness (weakness #3 in the AI reviews).
+
+**Change.**
+- **Keep `output.weight` (lm_head) resident** — this milestone depends on it for
+  logit computation. The `ESMC_NO_SCORING` build flag in M-F must be off.
+- **Add a scoring/logit forward path** to the graph (currently embedding-only).
+  For each variant in a DMS assay: mask the mutant position, forward through the
+  full model (encoder + lm_head), read the mutant-residue logit, compute
+  Δlog-likelihood (mutant − wild-type). Aggregate over all variants in the assay.
+- **Assay: PABP (yeast Poly(A)-binding protein, ~1.4k single mutants).** This is a
+  standard, well-characterized ProteinGym DMS assay, small enough for rapid
+  iteration but large enough to produce meaningful rank correlations.
+- **Compare** the Spearman ρ(esmc.cpp, PyTorch) against ρ(PyTorch, PyTorch) (the
+  reference self-consistency baseline) and against the current cosine-proxy ρ.
+- **Document** where the cosine-proxy agrees with and diverges from native scoring
+  — this is the key finding for the camera-ready.
+
+**Interaction with M-F:** M-F's lm_head drop is conditional. If M-J is on the
+roadmap, keep lm_head resident. The overhead is small (load time + RSS).
+
+**Estimated impact.** Directly answers the reviewer critique: "the evaluation
+measures preservation of embedding geometry rather than direct biological
+prediction quality." With M-J, the downstream claim changes from "embeddings
+correlate" to "marginal log-likelihood scores reproduce the reference on PABP."
+
+**Effort / Risk.** M–L / Medium (new graph path, but small scope — one assay,
+one forward mode).
+
+**Exit criteria.**
+- [ ] Spearman ρ(esmc.cpp, PyTorch) within 0.02 of ρ(PyTorch, PyTorch) on the
+      PABP assay (reference reproduction fidelity).
+- [ ] Documented comparison: which variants does the cosine-proxy rank correctly
+      that native scoring also ranks correctly? Which does it miss?
+- [ ] Throughput of scoring path measured (seq/s for variant scoring, not just
+      embedding), reported in `lab_manual.md`.
+
+---
+
+### M-K — Quantization structural analysis (parallel evaluation track)
+
+**Goal.** Characterize which 300M per-layer matrices actually use true k-quant
+blocks vs fall back, and predict which matrices flip at 6B (d_model=2560). Turns
+the "4-bit needs caution" caveat (reviewer weakness #5) into a measured result.
+
+**Change (analysis, not code).**
+- **Audit per-tensor block structure at 300M** (d_model=960, not a 256-multiple):
+  for every weight tensor in the model, report whether `ggml_is_quantized` selects
+  a true k-quant path or falls back to a simpler scheme. Table the results per
+  layer and tensor name.
+- **Contrast at 6B** (d_model=2560, a 256-multiple): predict which matrices will
+  use true k-quant blocks and which structural constraints change. This pairs
+  naturally with M-H's 6B bring-up — make it a sub-gate.
+- **Relate to the paper's 4-bit findings:** the reviewer noted "most per-layer
+  matrices at this model width do not actually use true k-quant blocks." Confirm
+  or quantify this with hard data from the audit.
+
+**Estimated impact.** Primary value is for the paper's quantization discussion:
+a per-tensor structural table replaces a hand-wavy caveat. At 6B, knowing which
+matrices flip guides the quant strategy without guesswork.
+
+**Effort / Risk.** S–M / Low.
+
+**Exit criteria.**
+- [ ] Per-tensor table of true-k-quant vs fallback at 300M in `lab_manual.md`.
+- [ ] Written prediction of which matrices change at 6B (d_model=2560).
+- [ ] Paper note: at least one sentence in the camera-ready's quantization section
+      citing the structural audit (e.g. "At 300M, only X of Y per-layer matrices
+      use true k-quant blocks; at 6B this improves to Z/Y.").
+
+---
+
+### M-L — Productize the staged validation pipeline (parallel evaluation track)
+
+**Goal.** Reframe the paper's actual novel contribution (per all 3 AI reviewers)
+— the staged bottom-up validation pipeline + the Q/N token transposition bug
+case study — from an internal gate into a reusable artifact that other PLM ports
+can adopt.
+
+**Change.**
+- **Package the methodology** as `benchmarks/port_validation_template.md`: a
+  parameterized guide describing the three stages (tokenizer match, layer-0 Q/K
+  L2 norms, full per-residue cosine similarity) and the alphabet-covering sequence
+  set (the Q/N bug lesson).
+- **Extend `benchmarks/validate.py`** with a `--against <ref-pickle>` mode so any
+  PLM port can point at a reference embedding pickle and run the full staged
+  pipeline without custom scripting.
+- **Document the Q/N bug case study** as the motivating example: show the
+  systematic alphabet-covering validation that caught it, vs the short smoke test
+  that missed it.
+- **Test against a second model** (e.g. ESM2-8M if available, or a deliberate
+  regression stub) to demonstrate portability.
+
+**Estimated impact.** Low on throughput; high on framing. The reviewers called
+the validation pipeline "the paper's strongest contribution" and "a practical
+template for future PLM ports." Productizing it turns a one-time effort into a
+reusable artifact — directly addresses weakness #1 (engineering port, no novel
+methods).
+
+**Effort / Risk.** S–M / Low.
+
+**Exit criteria.**
+- [ ] `benchmarks/port_validation_template.md` written and committed.
+- [ ] `validate.py --against <ref-pickle>` runs successfully against a second
+      model (or a deliberate corruption stub).
+- [ ] Q/N token transposition is demonstrably caught by the reusable pipeline
+      when reintroduced artificially.
+- [ ] All existing correctness gates remain green (the productized pipeline must
+      not regress esmc.cpp's own validation).
 
 ---
 
@@ -416,6 +541,15 @@ Real-world corpus (heterogeneous FASTA, end-to-end incl. load), the headline v2 
 | + M-B (bucketed cache, single-seq loop) | ≥ 2× baseline |
 | + M-C (load-once + dynamic batching) | ≥ 10× baseline (toward 290–345 seq/s sustained) |
 
+Evaluation quality (downstream claim strength, not throughput):
+
+| Stage | Downstream eval |
+|-------|-----------------|
+| v1 (current) | cosine proxy, rank ρ only |
+| + M-L | reusable validation harness (no new claim, but artifact) |
+| + M-J | native masked-marginal likelihood scoring on PABP (~1.4k variants) |
+| + M-K | structural k-quant characterization at 300M; 6B prediction |
+
 ---
 
 ## 8. Measurement protocol (applied at every exit)
@@ -439,6 +573,12 @@ Real-world corpus (heterogeneous FASTA, end-to-end incl. load), the headline v2 
    FASTA, report aggregate seq/s including model load, vs the shell-loop baseline.
 5. **Record:** append a dated `EXP-0xx` row to `lab_manual.md` with before/after
    numbers and the exit-criteria checklist outcome.
+6. **Multi-run variance (new).** N≥3 runs of `throughput.py` per config; report
+   median + min/max (not a single point estimate). Apply to every milestone exit,
+   not just paper-cited numbers.
+7. **Second-host gate (new, paper-only).** Any throughput number destined for
+   `paper.tex` must be reproduced on a second Apple Silicon tier (different from the
+   M4 Max primary). Single-host numbers stay in `lab_manual.md` as provisional.
 
 Hold every variable constant except the milestone under test: same host, same
 model file, same sequences (`benchmarks/sequences_throughput.fasta`), same
@@ -450,16 +590,19 @@ warmup/iteration counts.
 
 | Risk | Mitigation |
 |------|------------|
-| **F16 activations (M-A) move cosine past tolerance** | Default-off runtime flag; keep F32 norm/residual accumulation; gate on the full 100-seq reference incl. N/Q + long sequences (BUG-002 lesson). Negative result is acceptable and recorded. |
+| **M-J (scoring path) diverges from PyTorch logits** | Compare against the same PABP assay scored by PyTorch; gate on Spearman ρ within 0.02 of reference self-consistency. |
+| **M-K (k-quant audit) is a no-op finding** | "All 300M matrices fall back" is a valid result — document it and note the 6B prediction is the real value. |
+| **M-L (validation harness) duplicates existing tools** | Scope it as a *packaging* effort, not a new tool; the novelty is the reusable template + case study, not the code. |
+| F16 activations (M-A) move cosine past tolerance | Default-off runtime flag; keep F32 norm/residual accumulation; gate on the full 100-seq reference incl. N/Q + long sequences (BUG-002 lesson). Negative result is acceptable and recorded. |
 | Scale-folding (M-F) corrupts quantized weights | Fold only into F16/F32 tensors; keep the scale node when `ggml_is_quantized(t)`. Verify all 4 precisions. |
 | Bucketed padding (M-B) introduces pad-attention leakage | Reuse the validated batch mask; assert padded == unpadded within F16 noise. |
 | Maskless uniform path (M-D) silently wrong on ragged input | Only enable when `all(lengths == max_len)`; `esmc-test-batch` covers both paths. |
 | Dynamic batching (M-C) OOMs on a pathological long sequence | Token-budget cap; fall back to single-sequence when one sequence exceeds the budget. |
 | CPU thread change (M-E) regresses on non-Apple hosts | Detect platform; default sensibly; allow override; benchmark on target. |
 
-**Dependency order:** M-F → M-A → M-B → (M-C ∥ M-D) → M-E → M-G → M-H.
-M-A first among substantive items because all later throughput numbers depend on
-the activation precision in force.
+**Dependency order (throughput track):** M-F (conditional lm_head per M-J) → M-A → M-B → (M-C ∥ M-D) → M-E → M-G → M-H.
+
+**Parallel correctness/evaluation track:** M-L → M-J → M-K (M-K's 6B audit nests under M-H). Does not block throughput track.
 
 ---
 
@@ -482,3 +625,22 @@ number, and softening the "batch 16 is the sweet spot" claim in §6 if M-D exten
 the ceiling. Follow the same task/exit-criterion structure as `perf_roadmap.md`
 §10 (T1–T13). Do this only after the measured numbers exist — never edit the paper
 ahead of the data.
+
+**Camera-ready fixes (from the decision letter and AI reviews, not gated on v2).**
+These are independent of any throughput milestone and should be applied before the
+next submission:
+- **Move the Metal 4-bit headline out of the abstract** into the body. The abstract
+  should lead with the portability/correctness story, not the (narrow) throughput
+  advantage. Addresses the "presentation asymmetry" noted by all 3 reviewers.
+- **Report Q4_K_S and Q4_K_M as separate rows** in throughput tables, not a merged
+  "1.2–1.4×" range. Each variant has different characteristics; conflating them
+  overstates the single-configuration speedup.
+- **Fix "no biases anywhere" prose** (abstract and Introduction) to acknowledge the
+  pre-QKV LayerNorm bias exception documented in Table 1. The paper's own data
+  contradicts the claim.
+- **Fix tensor count in §3.2:** "9 tensors per layer" → "12 tensors per layer"
+  (3 global + 12×30 = 363, matching Appendix A's enumeration).
+- **If M-J lands:** add a note that the downstream evaluation has been upgraded from
+  cosine-proxy to native masked-marginal likelihood scoring on PABP.
+- **If M-K lands:** cite the structural k-quant audit in the quantization discussion
+  (e.g. "At 300M, only X of Y per-layer matrices use true k-quant blocks").

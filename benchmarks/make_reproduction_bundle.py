@@ -634,8 +634,22 @@ def write_model_card(entries: list[dict[str, Any]], dest_dir: Path, hf_repo: str
         "",
         "## Citation",
         "",
-        "If you use these models, please cite the ESM Cambrian work by EvolutionaryScale "
-        f"and link the [esmc.cpp runtime]({GITHUB_REPO}).",
+        "If you use these models, please cite the esmc.cpp runtime. If you use esmc.cpp "
+        "or the GGUF model files in your work, please cite the esmc.cpp paper:",
+        "",
+        "```bibtex",
+        "@article{pathak2026esmc,",
+        "  title={esmc.cpp: A Zero-Dependency, Metal-Accelerated C/C++ Runtime for ESM Cambrian Protein Embeddings},",
+        "  author={Pathak, Anagh and Pathak, Ananya},",
+        "  journal={OpenReview},",
+        "  year={2026},",
+        "  url={https://openreview.net/forum?id=0GarVDrEAi},",
+        "  note={CAISc 2026, Track 2: Open-Ended Problems, non-archival submission}",
+        "}",
+        "```",
+        "",
+        "You may also acknowledge the ESM Cambrian work by EvolutionaryScale and link "
+        f"the [esmc.cpp runtime]({GITHUB_REPO}).",
     ]
     text = "\n".join(card) + "\n"
     (dest_dir / "README.md").write_text(text)

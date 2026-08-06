@@ -326,6 +326,26 @@ Built with ESM.
 See [LICENSE](LICENSE) and [NOTICE](NOTICE) for the full terms and required
 attributions.
 
+## Citation
+
+If you use `esmc.cpp` or the GGUF model files in your work, please cite the
+esmc.cpp paper:
+
+```bibtex
+@article{pathak2026esmc,
+  title={esmc.cpp: A Zero-Dependency, Metal-Accelerated C/C++ Runtime for ESM Cambrian Protein Embeddings},
+  author={Pathak, Anagh and Pathak, Ananya},
+  journal={OpenReview},
+  year={2026},
+  url={https://openreview.net/forum?id=0GarVDrEAi},
+  note={CAISc 2026, Track 2: Open-Ended Problems, non-archival submission}
+}
+```
+
+Please also cite the original [ESM Cambrian](https://www.evolutionaryscale.ai/blog/esm-cambrian)
+model by EvolutionaryScale, whose weights this runtime serves (see the
+[License](#license) section for the Cambrian Open License terms).
+
 ## Acknowledgments
 
 [DataEngUtils](https://dataengutils.com) — CSV, JSON, JSONL, and Parquet utilities used throughout this project.
