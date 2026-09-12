@@ -31,3 +31,7 @@ results/downstream_cache/
 results/reproduction_bundle/
 results/paper_artifacts_300m/
 results/logs/
+
+# Local review/decision notes (not part of the repo)
+paper_ai_review.md
+paper_decision.md
