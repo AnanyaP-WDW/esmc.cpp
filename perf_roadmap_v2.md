@@ -644,3 +644,79 @@ next submission:
   cosine-proxy to native masked-marginal likelihood scoring on PABP.
 - **If M-K lands:** cite the structural k-quant audit in the quantization discussion
   (e.g. "At 300M, only X of Y per-layer matrices use true k-quant blocks").
+
+---
+
+## 12. v2.1 implementation results (this pass)
+
+Implemented and measured on Apple M4 Max (10 P-cores + 4 E-cores), 300M f16,
+macOS 26.5. Correctness gate: `benchmarks/correctness.py` (100 sequences × 4
+precisions). F16/Q8_0 100/100 pass; the q4_k_m (2) and q4_k_s (13) failures are
+**identical to the committed baseline** `results/correctness_300m.csv` — no
+regression was introduced.
+
+### 12.1 Landed changes
+
+| Change | Touchpoints | Result |
+|--------|-------------|--------|
+| Fused SwiGLU (`ggml_swiglu_split`) replacing `silu`+`mul` | `src/esmc-graph.cpp` (single + batch) | −30 nodes; verified by cosine gates + `esmc-test-batch` |
+| Fold `residue_scale` into `W_o` / `W_down` at load (F16/F32 only; quantized keeps the scale node) | `src/esmc.cpp` `esmc_load_model`, `esmc-graph.cpp` | −60 nodes for f16; scale-q4 unchanged |
+| Readback straight into the caller buffer; reusable position scratch | `esmc.cpp`, `esmc-graph.cpp`, `esmc-internal.h` | removes a per-call malloc + memcpy |
+| M-D: cache pos/mask in the batch path; maskless uniform-length fast path | `esmc.cpp` `esmc_embed_batch`, `esmc-graph.cpp` `esmc_build_graph_batch` | mask/pos upload bytes = 0 after the first call; uniform batch matches single (max_diff 0) |
+| M-C: `esmc-embed --fasta` load-once + length-sorted, token-budget batching | `examples/embed/main.cpp` | see 12.2 |
+| M-E: default CPU threads = P-core count (`hw.perflevel0.physicalcpu`); per-backend flash/dense measured; Accelerate/BLAS confirmed ON | `esmc.cpp` `esmc_new_context` | CPU ~1.5–2× |
+| M-B: length-bucketed single-seq cache — **opt-in, default off** | `esmc_context_set_buckets`, `esmc_pad_to_bucket` | negative result, see 12.3 |
+| M-A: F16 activations — **not implemented; negative by analysis** | — | see 12.4 |
+
+### 12.2 M-C — real-world corpus throughput
+
+1000-sequence FASTA (10× the 100 correctness sequences), 292 960 tokens, M4 Max
+Metal f16, default `--max-tokens 8192 --max-batch 32`:
+
+| Config | Wall time | Aggregate |
+|--------|----------:|----------:|
+| `--fasta` in-process (no writes) | 77.6 s | 12.9 seq/s |
+| per-sequence shell loop (model reload each call) | ~825 s (20-seq sample ×50) | ~1.2 seq/s |
+| ratio | | **~10.6×** |
+
+- Padding overhead: 2.0% (292 960 → 298 705 tokens).
+- In-process outputs vs reference: 100/100 exact-shape, min cosine 0.99999.
+- Exit criteria met: load-once (single "weight buffer allocated" line), ≥10×,
+  ordering preserved, RSS bounded.
+
+### 12.3 M-B — bucketed single-sequence cache (negative)
+
+| Metric | Exact-key | Bucketed |
+|--------|----------:|---------:|
+| graph constructions (1000 calls, sorted) | 55 | **16** (≤ #buckets) |
+| wall time | 77.1 s | 82.2 s |
+
+Rebuild is only a few ms on Metal, while padding to buckets adds real attention
+work, so bucketing loses. The exit criterion "graph built ≤ #buckets" is met,
+but "≥2× exact-key throughput" is **rejected**. The path is kept behind
+`esmc_context_set_buckets` (default off) to keep the criterion reproducible; the
+fast path uses exact-length graph reuse.
+
+### 12.4 M-A — F16 activations (negative by analysis)
+
+Metal's F16-weight matmul kernel already uses F16 tensor cores with F32
+activations:
+
+```
+ggml-metal.metal:10171
+kernel_mul_mm_f16_f32 → simdgroup_half8x8
+```
+
+and the F32 activation is converted to half in shared memory. F32 activations
+therefore cost bandwidth and a cast, not tensor-core utilization. On CPU,
+`ggml_norm`/`ggml_rms_norm` accept only F32 (`ggml-cpu/ops.cpp:3702,3795`), so a
+full F16 activation stream would require casts around all 60 norms. The expected
+gain does not justify the correctness risk; M-A is recorded as a negative result
+and no flag was added.
+
+### 12.5 Remaining v2 work
+
+M-J (ProteinGym PABP scoring), M-K (k-quant structural audit), M-L (validation
+harness productization), M-G (quantized Metal, low ROI), M-H (600M/6B +
+second-host gate) are unchanged and still open. All paper numbers destined for
+`paper.tex` remain bound by §8's second-host gate.

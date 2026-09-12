@@ -294,6 +294,7 @@ Use this table as the canonical record. Re-run experiments and append rows when 
 | EXP-020 | 2026-06-21 | M4 | Quantized throughput benchmark on M4 Max | 300M all 4 GGUFs | Metal | **COMPLETE** — F16 Metal fastest; Q4_K_M 4× disk savings; see §5.19 |
 | EXP-021 | 2026-06-21 | M5 | Batching & bucketed padding via `esmc_embed_batch` | 300M f16 GGUF | Metal | **COMPLETE** — 3.5× throughput vs per-sequence at batch=16; see §5.20 |
 | EXP-022 | 2026-06-21 | M2.2 | Drop forced F32 precision + reduce copies | 300M f16 GGUF | Metal | **COMPLETE** — `set_prec` calls removed; flash/dense parity at 10–15ms across all buckets; see §5.21 |
+| EXP-023 | 2026-09-12 | v2.1 | SwiGLU fusion + residue fold, P-core threads, `--fasta` load-once batching; M-B/M-A negative | 300M all gGUFs | CPU/Metal | **COMPLETE** — −90 nodes; CPU ~1.5–2×; 1000-seq FASTA ~10.6× shell loop, 2% padding; see §5.22 |
 
 ### 5.2 EXP-003 — Full forward validation (F16, CPU)
 
@@ -1690,6 +1691,126 @@ On Metal, `ggml_mul_mat_set_prec` is effectively a no‑op for the `GGML_PREC_F3
 **Verdict:** M2.2 complete. All forced‑precision calls removed. Flash and dense paths at performance parity (10–16ms across all buckets). No regression on any metric.
 
 ---
+
+### 5.22 EXP-023 — v2.1 runtime pass (fusion, P-core threads, load-once FASTA; M-B/M-A negative)
+
+**Date:** 2026-09-12  
+**Host:** Apple M4 Max, macOS 26.5, arm64, 36 GB unified memory (10 P-cores + 4 E-cores)  
+**Model:** `models/esmc-300m-f16.gguf` (634 MiB) unless noted  
+**Scope:** the revised plan from the roadmap review — free wins first, then M-B/M-C/M-D/M-E, with M-F (fold) and M-A (F16 activations) evaluated.
+
+#### Implementation
+
+| Change | Files | Notes |
+|--------|-------|-------|
+| Fused SwiGLU (`ggml_swiglu_split`) replacing `silu`+`mul` | `src/esmc-graph.cpp` (single + batch) | one op/layer; exact (`silu(a)*b`) |
+| Fold `residue_scale` into `W_o`/`W_down` at load | `src/esmc.cpp`, `esmc-graph.cpp` | F16/F32 only; quantized keeps the graph scale node |
+| Readback direct + reusable position scratch | `src/esmc.cpp`, `esmc-graph.cpp`, `esmc-internal.h` | removes per-call malloc/memcpy |
+| Batch pos/mask caching + maskless uniform path (M-D) | `esmc.cpp`, `esmc-graph.cpp` | `esmc_build_graph_batch(..., bool use_mask)` |
+| `esmc-embed --fasta` load-once, length-sorted token-budget batching (M-C) | `examples/embed/main.cpp` | `--max-batch`, `--max-tokens`, `--output-dir`, `--single-bucketed`, `--single-exact` |
+| CPU threads = P-core count (M-E) | `esmc.cpp` (`esmc_new_context`) | `sysctl hw.perflevel0.physicalcpu` |
+| Optional length-bucketed single path (M-B) | `esmc.cpp`, `esmc.h`, `esmc-graph.cpp` | `esmc_context_set_buckets`, default **off** |
+
+Correctness fix: `tests/test_batch.cpp` now gates on the documented F16
+masked-vs-maskless noise ceiling (1e-3) instead of a too-strict rtol=1e-4 that
+failed even at baseline; the baseline mismatch was 4.2e-4 and is now 5.5e-4
+after residue folding (~1 ULP at |x|~1).
+
+#### Node-count reduction (M-F + SwiGLU)
+
+For the 30-layer f16 model: −30 nodes (silu+mul → swiglu) and −60 nodes
+(2 residue scales/layer folded into weights) = **−90 graph nodes**. Confirmed
+via `ESMC_PROFILE=1` (node count printed per graph).
+
+#### Correctness (gate: `benchmarks/correctness.py`, backend metal)
+
+| Precision | Passed / total | vs committed baseline |
+|-----------|---------------:|-----------------------|
+| f16       | 100 / 100      | unchanged             |
+| q8_0      | 100 / 100      | unchanged             |
+| q4_k_m    | 98 / 100       | identical failures    |
+| q4_k_s    | 87 / 100       | identical failures    |
+
+The q4 failures are **byte-identical to `results/correctness_300m.csv`** (mean
+cosine 0.990–0.995 vs the 0.995 gate) and predate this work. Final artifact:
+`results/correctness_final_check.{json,csv}`.
+
+`esmc-test-batch` (f16, Metal): ragged/masked PASS (max_diff 5.46e-4, limit
+1e-3) and uniform/maskless PASS (max_diff 0).
+
+#### M-C — 1000-sequence FASTA (Metal f16)
+
+`/tmp/fasta1000.fasta` = 10× the 100 correctness sequences, 292 960 tokens.
+
+| Config | Wall | Aggregate | Padding waste |
+|--------|-----:|----------:|--------------:|
+| `--fasta` in-process | 77.6 s | 12.9 seq/s | 2.0% |
+| per-sequence shell loop (reload each call) | ~825 s (20-seq sample ×50) | ~1.2 seq/s | — |
+| ratio | | **~10.6×** | |
+
+- Model loaded once (one "weight buffer allocated" line).
+- Per-sequence outputs bit-match the reference: 100/100, min cosine 0.99999.
+- Batch-16 (maskless uniform) steady state: `builds=0, upload_bytes=1792`
+  (token inputs only) after the first call.
+
+#### M-D — mask/position caching
+
+Repeated equal-shape batches: `upload_bytes` drops from 2304 (first call, with
+positions) to 128–1792 (token inputs) on subsequent calls — mask/position upload
+= 0. The uniform-length path passes `mask=nullptr` to `ggml_flash_attn_ext`.
+
+#### M-B — bucketed single-sequence cache (negative)
+
+Length-sorted, in-process, 1000 calls:
+
+| Metric | Exact-key | Bucketed |
+|--------|----------:|---------:|
+| graph constructions | 55 | **16** (≤ #buckets) |
+| wall time | 77.1 s | 82.2 s |
+
+Padding to buckets costs more attention work than the few-ms graph rebuild it
+saves on Metal, so the throughput hypothesis is **rejected**. Kept opt-in
+(`esmc_context_set_buckets`, default off) so the "builds ≤ #buckets" criterion
+stays reproducible.
+
+#### M-E — CPU path
+
+- Default CPU threads = 10 (P-cores), down from 14 (`hardware_concurrency`).
+- Accelerate/BLAS confirmed enabled (`GGML_ACCELERATE=ON`, `GGML_BLAS=ON`).
+- Per-backend flash vs dense (f16 CPU, median of 5): short 57.5 ms flash vs
+  41.1 ms dense (dense wins by 29%); medium 323 ms vs 363 ms and long 1363 ms vs
+  1753 ms (flash wins by 11%/22%). Flash remains the default.
+- Steady-state Metal latency is unchanged vs HEAD within noise (short 88 vs 91,
+  medium 47.7 vs 47.7, long 205 vs 208 seq/s). Note: the "27 ms medium" figure
+  in `perf_roadmap_v2.md` §1 was not reproducible on this host; the baseline
+  binary at HEAD measures 47.7 ms under the same conditions.
+
+#### M-A — F16 activations (negative by analysis)
+
+`ggml-metal.metal:10171` maps `kernel_mul_mm_f16_f32` to `simdgroup_half8x8`:
+the Metal F16 matmul already uses F16 tensor cores with F32 activations (the
+activation is cast to half in shared memory). F32 activations therefore cost
+bandwidth and a cast, not tensor-core utilization. CPU `ggml_norm`/`ggml_rms_norm`
+accept only F32 (`ggml-cpu/ops.cpp:3702,3795`), so a full F16 activation stream
+would need casts around all 60 norms. Recorded as a negative result; no flag added.
+
+#### Exit criteria checklist
+
+- [x] F16/Q8_0 cosine gates green; q4 failures identical to baseline (no regression)
+- [x] `ggml_swiglu_split` + residue fold: −90 nodes, cosine gates green
+- [x] M-C load-once (1 weight-buffer line), ≥10× shell loop (~10.6×), outputs match, padding 2.0%
+- [x] M-D mask/pos upload = 0 after first call; uniform maskless matches single (max_diff 0)
+- [x] M-E P-core threads wired; Accelerate/BLAS ON; flash/dense decision documented
+- [x] `esmc-test-batch` PASS both paths
+- [~] M-B: builds ≤ #buckets ✅; ≥2× throughput ❌ (negative, documented)
+- [~] M-A: negative by analysis (Metal kernel already uses F16 tensor cores)
+
+**Verdict:** v2.1 complete. Free wins (SwiGLU fusion, residue folding, readback
+hygiene) plus P-core threading and a load-once FASTA batcher are landed and
+validated. M-B and M-A are negative results, recorded rather than forced.
+
+---
+
 ## 6. Bug discovery log (important for Discussion / Lessons Learned)
 
 These were found during milestone 6 work. Each is a candidate **case study** in the paper.
@@ -1992,6 +2113,7 @@ cmake --build build --target esmc-embed
 
 | Date | Entry |
 |------|-------|
+| 2026-09-12 | EXP-023: v2.1 runtime pass — SwiGLU fusion (−30 nodes) + residue-scale fold (−60 nodes), P-core CPU threads (14→10), `--fasta` load-once length-sorted batching (~10.6× shell loop, 2% padding), batch mask/position caching (0 upload steady state). M-B bucketed cache and M-A F16 activations measured/analyzed **negative** and documented; correctness identical to baseline (f16/q8_0 100%, q4 failures pre-existing). §5.22 |
 | 2026-06-21 | EXP-022: Milestone M2.2 completed — forced-precision calls removed from both attention paths; flash/dense parity at 10–16ms; documented in §5.21 |
 | 2026-06-21 | EXP-021: Milestone M5 completed — batching via `esmc_embed_batch`; 3.6× single-seq throughput at batch=16; documented in §5.20 |
 | 2026-06-21 | EXP-020: Milestone M4 completed — quantized throughput benchmark on M4 Max; F16 Metal fastest; Q4_K_M saves 4× disk; documented in §5.19 |

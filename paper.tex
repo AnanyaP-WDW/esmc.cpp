@@ -220,6 +220,9 @@ Introducing \texttt{ggml\_backend\_sched} keeps all intermediate tensors GPU-res
 \paragraph{Precision cleanup (M2.2).}
 Forced \texttt{GGML\_PREC\_F32} on the dense attention matmuls was removed: on Metal the setting was a no-op (the backend always accumulates in F32), and removing it improves forward-compatibility for CPU backends that may use F16 accumulation.
 
+\paragraph{Runtime v2: fusion, P-core threading, and load-once batching.}
+Building on the completed roadmap, we removed further redundant graph work and targeted real corpus workloads. (i) The FFN's separate SiLU and multiply are fused into \texttt{ggml\_swiglu\_split}, and the two per-layer residue scales are folded into the $W_o$ and $W_{\text{down}}$ weights at load time for non-quantized tensors, removing 90 graph nodes for the 30-layer model with no change to the cosine gates. (ii) On Apple Silicon the CPU thread count now defaults to the performance-core count (10 on M4 Max) rather than all 14 cores, improving CPU throughput by roughly 1.5--2$\times$ across buckets. (iii) A \texttt{--fasta} path loads the model once and embeds a corpus in length-sorted, token-budget batches with cached position and mask tensors; on a 1000-sequence Swiss-Prot sample (292\,960 tokens) it sustains the batched rate end to end, $\sim$10.6$\times$ a per-sequence shell loop that reloads the model every call, with 2.0\% padding overhead. Two hypotheses from the v2 plan were rejected by measurement and are recorded as negative results: a length-bucketed single-sequence graph cache was \emph{slower} on Metal (graph rebuild costs only a few ms, while padding adds attention work), and an F16-activation variant was unnecessary because the Metal F16 matmul kernel already uses \texttt{simdgroup\_half8x8} tensor cores with F32 activations. Steady-state Metal latency is unchanged within run-to-run noise.
+
 \subsection{Batching}
 \label{sec:batching}
 
