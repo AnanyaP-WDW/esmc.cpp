@@ -58,10 +58,11 @@ static void print_usage(const char * prog) {
             "  --pool STR                Pooling: none (default), mean\n"
             "  --fasta PATH              Embed every sequence in a FASTA (load model once)\n"
             "  --output-dir DIR          With --fasta: write one .npy per sequence\n"
-            "  --max-batch N             Max sequences per batch (default: 32)\n"
+            "  --max-batch N             Cap sequences per batch (0 = length-aware, default)\n"
             "  --max-tokens N            Token budget per batch, n_seq*max_len (default: 8192)\n"
             "  --single-bucketed         With --fasta: one seq/call via bucketed esmc_embed (M-B)\n"
             "  --single-exact            With --fasta: one seq/call, exact length (M-B baseline)\n"
+            "  --single-plain            With --fasta: one seq/call via esmc_embed single graph\n"
             "  --verify-load             Print tensor shapes (milestone 3)\n"
             "  --test-tokenizer          Print token IDs for -s (milestone 4)\n"
             "  --check-layer0-qk         Print layer-0 Q/K norms (milestone 5)\n"
@@ -138,14 +139,26 @@ static int run_embed(
 }
 
 struct FastaEmbedOptions {
-    enum Mode { BATCH, SINGLE_BUCKETED, SINGLE_EXACT };
+    enum Mode { BATCH, SINGLE_BUCKETED, SINGLE_EXACT, SINGLE_PLAIN };
     const char * fasta      = nullptr;
     const char * output_dir = nullptr;  // nullptr => no writes (benchmark mode)
     const char * pool       = "none";
-    int          max_batch  = 32;
+    int          max_batch  = 0;        // 0 => length-aware schedule; >0 => fixed cap
     long         max_tokens = 8192;     // n_seq * max_len budget per batch
     Mode         mode       = BATCH;    // SINGLE_* are for M-B measurement
 };
+
+// Length-aware batch-size schedule. Measured per-residue optimum on M4 Max Metal
+// F16 (README / lab_manual EXP-023): short ~16, medium ~4, long ~1. The schedule
+// approximates the observed inverse relation between length and optimal batch
+// (roughly a constant token budget of ~1k). Overridden by a fixed --max-batch.
+static int esmc_auto_batch_size(int max_len) {
+    if (max_len <= 64)  return 16;
+    if (max_len <= 128) return 8;
+    if (max_len <= 256) return 4;
+    if (max_len <= 512) return 2;
+    return 1;
+}
 
 // M-C: read a whole FASTA, load the model once, length-sort, and embed in
 // token-budget batches. Outputs are written per sequence in input order.
@@ -234,7 +247,8 @@ static int run_fasta(esmc_model * model, esmc_context * ctx, const FastaEmbedOpt
             const int len = lens[idx];
             std::vector<float> emb((size_t) len * (size_t) n_embd);
             int rc;
-            if (opt.mode == FastaEmbedOptions::SINGLE_BUCKETED) {
+            if (opt.mode == FastaEmbedOptions::SINGLE_BUCKETED ||
+                opt.mode == FastaEmbedOptions::SINGLE_PLAIN) {
                 rc = esmc_embed(ctx, toks[idx].data(), len, emb.data());
             } else {
                 const int32_t l1[1] = { len };
@@ -259,7 +273,9 @@ static int run_fasta(esmc_model * model, esmc_context * ctx, const FastaEmbedOpt
         while (j + 1 < n) {
             const int n_seq = (j + 1 - i) + 1;
             const int ml    = std::max(max_len, lens[order[j + 1]]);
-            if (n_seq > opt.max_batch) break;
+            // Length-aware cap: the optimal batch shrinks as sequences get longer.
+            const int cap = opt.max_batch > 0 ? opt.max_batch : esmc_auto_batch_size(ml);
+            if (n_seq > cap) break;
             if ((long) n_seq * (long) ml > opt.max_tokens) break;
             max_len = ml;
             j++;
@@ -328,7 +344,7 @@ int main(int argc, char ** argv) {
     const char * pool             = "none";
     const char * fasta_path       = nullptr;
     const char * output_dir       = nullptr;
-    int          fasta_max_batch  = 32;
+    int          fasta_max_batch  = 0;
     long         fasta_max_tokens = 8192;
     FastaEmbedOptions::Mode fasta_mode = FastaEmbedOptions::BATCH;
     bool         verify_load      = false;
@@ -387,6 +403,8 @@ int main(int argc, char ** argv) {
             fasta_mode = FastaEmbedOptions::SINGLE_BUCKETED;
         } else if (strcmp(argv[i], "--single-exact") == 0) {
             fasta_mode = FastaEmbedOptions::SINGLE_EXACT;
+        } else if (strcmp(argv[i], "--single-plain") == 0) {
+            fasta_mode = FastaEmbedOptions::SINGLE_PLAIN;
         } else if (strcmp(argv[i], "--verify-load") == 0) {
             verify_load = true;
         } else if (strcmp(argv[i], "--test-tokenizer") == 0) {
@@ -455,7 +473,7 @@ int main(int argc, char ** argv) {
         opt.fasta      = fasta_path;
         opt.output_dir = output_dir;
         opt.pool       = pool;
-        opt.max_batch  = fasta_max_batch > 0 ? fasta_max_batch : 32;
+        opt.max_batch  = fasta_max_batch;
         opt.max_tokens = fasta_max_tokens > 0 ? fasta_max_tokens : 8192;
         opt.mode       = fasta_mode;
         const int rc = run_fasta(model, ctx, opt);
