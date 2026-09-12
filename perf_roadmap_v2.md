@@ -684,6 +684,38 @@ Metal f16, default `--max-tokens 8192 --max-batch 32`:
 - Exit criteria met: load-once (single "weight buffer allocated" line), ≥10×,
   ordering preserved, RSS bounded.
 
+**Batching is length-dependent (correction).** Controlled corpora, median of 3
+interleaved single/batched runs:
+
+| Corpus | Tokens/seq | Single ms/seq | Batched ms/seq | Speedup | Batched res/s |
+|--------|-----------:|--------------:|---------------:|--------:|--------------:|
+| short, 2000×45 aa   | 47  | 10.6  | 5.8   | 1.82× | 7,705 |
+| medium, 1000×233 aa | 235 | 32.8  | 33.0  | 0.99× | 7,054 |
+| long, 100×848 aa    | 850 | 122.7 | 132.7 | 0.92× | 6,389 |
+| mixed, 1000 seq     | ~293 | 43.1 | 44.6  | 0.97× | 6,566 |
+
+Batching helps short sequences; medium/long GEMMs already saturate the GPU and
+batching adds padding/masked-attention cost. The ~10.6× above is **load-once vs
+reload-per-call**, not batching. Per-residue throughput is still ~2.7–5.8×
+PyTorch MPS (2,398 res/s long) and larger vs PyTorch CPU.
+
+Per-residue vs batch size (uniform-length, `esmc-bench --batch N`, M4 Max Metal
+f16, residues/s):
+
+| Batch | short (45 aa) | medium (233 aa) | long (848 aa) |
+|------:|--------------:|----------------:|--------------:|
+| 1  | 4,473 | 9,253  | **9,719** |
+| 2  | 6,588 | 10,035 | 8,531 |
+| 4  | 7,674 | **10,520** | 8,200 |
+| 8  | 8,385 | 10,480 | 7,615 |
+| 16 | **8,896** | 8,922 | 7,657 |
+| 32 | 8,879 | 8,682 | 7,030 |
+
+Optimal batch is length-dependent (short 16, medium 4, long 1). **Implemented in M-C:**
+the `--fasta` batcher uses a length-aware schedule by default (`--max-batch 0`,
+`esmc_auto_batch_size()`), overridable with a fixed `--max-batch N`. Gain over
+fixed 32: 1.09–1.21×.
+
 ### 12.3 M-B — bucketed single-sequence cache (negative)
 
 | Metric | Exact-key | Bucketed |

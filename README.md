@@ -237,6 +237,34 @@ Single-sequence throughput by length bucket; each backend runs in a fresh proces
 
 F16 Metal is fastest across all buckets on the M4 Max, exploiting the native FP16 tensor-core path. Quantization's primary value is model-size reduction rather than throughput.
 
+### Batched corpus embedding (M4 Max, Metal F16)
+
+`esmc-embed --fasta` over synthetic corpora of identical-length sequences: model loaded once, one run per configuration, median of 3 interleaved single/batched runs. "Single" = one sequence per call in-process; "Batched" = token-budget batches (`--max-tokens 8192 --max-batch 32`), length-sorted. Per-residue rates include one model load and tokenization.
+
+| Corpus | Tokens/seq | Single (ms/seq) | Batched (ms/seq) | Speedup | Batched (residues/s) |
+|--------|-----------:|----------------:|-----------------:|--------:|---------------------:|
+| short, 2000 × 45 aa  | 47  | 10.6  | 5.8   | **1.82×** | 7,705 |
+| medium, 1000 × 233 aa | 235 | 32.8  | 33.0  | 0.99× | 7,054 |
+| long, 100 × 848 aa   | 850 | 122.7 | 132.7 | 0.92× | 6,389 |
+| mixed, 1000 seq      | ~293 | 43.1 | 44.6  | 0.97× | 6,566 |
+
+Batching is a real win for **short** sequences (~1.8×), where per-call launch overhead dominates. At medium/long lengths the per-sequence GEMMs already saturate the GPU and batching adds padding/attention work, so it is neutral-to-slightly-negative. For reference, the PyTorch baselines reach 1,318 / 2,355 / 2,398 residues/s (MPS, short/medium/long) and 464 / 1,063 / 1,478 (CPU), so `esmc.cpp` is ~2.7–5.8× faster per residue than PyTorch MPS — the dominant win is the C++/ggml runtime and load-once batching, not batching per se.
+
+#### Per-residue throughput vs batch size
+
+Uniform-length sequences, M4 Max Metal F16, median of 15 iterations; batch 1 is the single-sequence path. Values are **residues/s** (higher is better).
+
+| Batch size | short (45 aa) | medium (233 aa) | long (848 aa) |
+|-----------:|--------------:|----------------:|--------------:|
+| 1  | 4,473 | 9,253 | **9,719** |
+| 2  | 6,588 | 10,035 | 8,531 |
+| 4  | 7,674 | **10,520** | 8,200 |
+| 8  | 8,385 | 10,480 | 7,615 |
+| 16 | **8,896** | 8,922 | 7,657 |
+| 32 | 8,879 | 8,682 | 7,030 |
+
+The optimal batch size is length-dependent: short sequences favor batch 16 (~2.0× over batch 1), medium favor batch 4 (~1.14×), and long sequences are fastest at batch 1 — batching **reduces** per-residue throughput there. The `--fasta` batcher uses this schedule by default (`--max-batch 0` = length-aware; `--max-batch N` sets a fixed cap). On the corpora above the schedule is **1.09–1.21×** faster than a fixed batch 32.
+
 ### Peak memory (long bucket, 36 GB M4 Max)
 
 Peak resident set size (RSS) measured with `/usr/bin/time -l` in fresh processes. All 12 configurations below pass the 36 GB machine budget.

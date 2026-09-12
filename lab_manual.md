@@ -1753,6 +1753,45 @@ cosine 0.990–0.995 vs the 0.995 gate) and predate this work. Final artifact:
 - Batch-16 (maskless uniform) steady state: `builds=0, upload_bytes=1792`
   (token inputs only) after the first call.
 
+**Batching benefit is length-dependent.** Controlled corpora, model loaded
+once, median of 3 interleaved single/batched runs (`--single-plain` vs default
+`--fasta` batching):
+
+| Corpus | Tokens/seq | Single (ms/seq) | Batched (ms/seq) | Speedup | Batched (res/s) |
+|--------|-----------:|----------------:|-----------------:|--------:|----------------:|
+| short, 2000×45 aa   | 47  | 10.6  | 5.8   | **1.82×** | 7,705 |
+| medium, 1000×233 aa | 235 | 32.8  | 33.0  | 0.99× | 7,054 |
+| long, 100×848 aa    | 850 | 122.7 | 132.7 | 0.92× | 6,389 |
+| mixed, 1000 seq     | ~293 | 43.1 | 44.6  | 0.97× | 6,566 |
+
+Batching clearly helps only short sequences; medium/long GEMMs already
+saturate the GPU and batching adds padding/masked-attention work. Per-residue
+(~6.4–7.7k res/s here) is nonetheless ~2.7–5.8× PyTorch MPS
+(1,318/2,355/2,398 res/s short/medium/long) and ~5–16× PyTorch CPU
+(464/1,063/1,478). The dominant win is the runtime + load-once, not batching
+per se. This corrects the earlier framing that treated batching as the primary
+lever.
+
+**Per-residue vs batch size** (uniform-length, `esmc-bench --batch N`, median of
+15 iterations, M4 Max Metal f16, batch 1 = single path):
+
+| Batch | short (45 aa) res/s | medium (233 aa) res/s | long (848 aa) res/s |
+|------:|--------------------:|----------------------:|--------------------:|
+| 1  | 4,473 | 9,253  | **9,719** |
+| 2  | 6,588 | 10,035 | 8,531 |
+| 4  | 7,674 | **10,520** | 8,200 |
+| 8  | 8,385 | 10,480 | 7,615 |
+| 16 | **8,896** | 8,922 | 7,657 |
+| 32 | 8,879 | 8,682 | 7,030 |
+
+Optimal batch size is length-dependent (short 16, medium 4, long 1); a fixed
+`--max-batch 32` leaves short sequences ~2× and long sequences ~28% off their
+best. **Implemented:** `esmc-embed --fasta` now uses a length-aware schedule by
+default (`--max-batch 0`; `esmc_auto_batch_size()` step table), with `--max-batch N`
+as a fixed override. Measured over fixed 32: short 1.09×, medium 1.21×, long
+1.08×, mixed 1.12× (residues/s). Correctness unchanged (100/100, min cosine
+0.99999).
+
 #### M-D — mask/position caching
 
 Repeated equal-shape batches: `upload_bytes` drops from 2304 (first call, with

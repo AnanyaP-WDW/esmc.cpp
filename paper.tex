@@ -232,6 +232,44 @@ A key design decision is the layout of the attention output. For the flash path,
 
 On M4 Max Metal with a 28-token sequence, throughput scales nearly linearly up to batch 4 (2.8$\times$ for 4$\times$ the work) and reaches 3.6$\times$ single-sequence throughput at batch 16 (345\,seq/s). Beyond batch 16, GPU memory pressure introduces high variance (batch 32 yields 122--325\,seq/s). Batched and per-sequence embeddings agree to within F16 noise (max difference $4.2 \times 10^{-4}$).
 
+\begin{table}
+  \centering
+  \caption{Batched corpus embedding on M4 Max Metal F16 (300M). Model loaded once; length-sorted token-budget batches; per-residue rates include one model load and tokenization. Median of 3 interleaved single/batched runs.}
+  \label{tab:batching}
+  \begin{tabular}{lrrrr}
+    \toprule
+    Corpus & Tokens/seq & Single (ms/seq) & Batched (ms/seq) & Speedup \\
+    \midrule
+    short, 2000$\times$45\,aa   & 47        & 10.6  & 5.8   & 1.82$\times$ \\
+    medium, 1000$\times$233\,aa & 235       & 32.8  & 33.0  & 0.99$\times$ \\
+    long, 100$\times$848\,aa    & 850       & 122.7 & 132.7 & 0.92$\times$ \\
+    mixed, 1000 seq             & $\sim$293 & 43.1  & 44.6  & 0.97$\times$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Table~\ref{tab:batching} shows that end-to-end the batching benefit is concentrated in short sequences (1.82$\times$), where per-call launch overhead dominates; at medium and long lengths the per-sequence GEMMs already saturate the GPU, and batching is neutral to slightly negative once padding and masked attention are included. Per-residue throughput remains $\sim$6{,}400--7{,}700\,residues/s, versus 1{,}318--2{,}398\,residues/s for PyTorch MPS and 464--1{,}478 for PyTorch CPU, so the runtime itself is the larger win.
+
+\begin{table}
+  \centering
+  \caption{Per-residue throughput (residues/s) versus batch size on M4 Max Metal F16 over uniform-length sequences; batch 1 is the single-sequence path. Optimal batch size is length-dependent: short favor batch~16, medium batch~4, long batch~1.}
+  \label{tab:batch-residues}
+  \begin{tabular}{rrrr}
+    \toprule
+    Batch size & short (45\,aa) & medium (233\,aa) & long (848\,aa) \\
+    \midrule
+    1  & 4{,}473 & 9{,}253  & \textbf{9{,}719} \\
+    2  & 6{,}588 & 10{,}035 & 8{,}531 \\
+    4  & 7{,}674 & \textbf{10{,}520} & 8{,}200 \\
+    8  & 8{,}385 & 10{,}480 & 7{,}615 \\
+    16 & \textbf{8{,}896} & 8{,}922 & 7{,}657 \\
+    32 & 8{,}879 & 8{,}682 & 7{,}030 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Table~\ref{tab:batch-residues} reports the per-residue rate across batch sizes: short sequences gain up to $2.0\times$ at batch~16, medium sequences peak at batch~4 ($1.14\times$), and long sequences are fastest unbatched. The \texttt{--fasta} batcher therefore uses a length-aware schedule by default (a fixed cap is still selectable), which is $1.09$--$1.21\times$ faster than a fixed batch size of 32 on these corpora.
+
 \subsection{Memory Footprint}
 
 Figure~\ref{fig:memory} shows long-bucket peak resident set size (RSS) across all 36 configurations measured with \texttt{/usr/bin/time -l} in fresh processes. Every configuration fits comfortably within the 36\,GB budget; the worst case (CPU F32, long) peaks at only 2609\,MiB, or 7.1\% of the machine. On M4 Max, peak RSS is dominated by model weights and a fixed per-backend allocation rather than by attention scratch buffers: each precision uses nearly the same RSS regardless of backend (CPU vs Metal) and sequence length (short vs long varies by at most $+7\%$). Memory scales proportionally with model file size: F32 ($\sim$2580\,MiB) exceeds F16 ($\sim$1320\,MiB) which exceeds Q4 ($\sim$520\,MiB). Metal Q4\_K\_S is the most memory-efficient configuration at $\sim$515\,MiB peak RSS, and the $+9$\,MiB variation from short to long is the smallest of any configuration. We therefore recommend Metal Q4\_K\_M/Q4\_K\_S for deployment: $\sim$520\,MiB peak RAM and $\sim$230\,MiB on disk, with F16 Metal delivering the best throughput on this hardware.
