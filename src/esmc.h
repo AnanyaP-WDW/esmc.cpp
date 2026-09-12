@@ -26,6 +26,10 @@ esmc_context * esmc_new_context(esmc_model * model);
 void           esmc_free_context(esmc_context * ctx);
 void           esmc_context_set_max_layers(esmc_context * ctx, int n_layers);
 void           esmc_context_set_flash_attn(esmc_context * ctx, bool enabled);
+/** M-B: pad single sequences to length buckets so graphs are reused across
+ *  heterogeneous lengths. Off by default (measured slower on Metal; see
+ *  lab_manual M-B). */
+void           esmc_context_set_buckets(esmc_context * ctx, bool enabled);
 
 int esmc_layer0_qk_norms(
     esmc_context * ctx,
@@ -37,6 +41,10 @@ int esmc_layer0_qk_norms(
 int   esmc_n_embd(const esmc_model * model);
 int   esmc_n_vocab(const esmc_model * model);
 int   esmc_n_ctx(const esmc_model * model);
+
+/** M-B: smallest graph-cache bucket length >= n_tokens. Callers that pre-pad
+ *  batches should pad to this length so cached graphs are reused. */
+int   esmc_pad_to_bucket(int n_tokens);
 const char * esmc_backend_name(const esmc_model * model);
 const char * esmc_token_to_str(const esmc_model * model, int token_id);
 

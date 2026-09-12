@@ -55,4 +55,8 @@ struct esmc_model {
     int eos_id  = 2;
     int pad_id  = 1;
     int mask_id = 32;
+
+    // M-F: residue_scale pre-folded into wo/ffn_down weights at load time
+    // (only for F16/F32 tensors; quantized weights keep the graph scale node).
+    bool residue_folded = false;
 };

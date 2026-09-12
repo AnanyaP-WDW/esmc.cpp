@@ -98,20 +98,16 @@ struct ggml_cgraph * esmc_build_graph(
     int32_t n_tokens,
     bool stop_after_layer0_qk) {
     // Debug/partial graph: always rebuild, never cache.
-    if (stop_after_layer0_qk) {
-        goto build;
-    }
-
-    // Reuse cached graph when n_tokens hasn't changed.
-    if (ectx->cached_gf && ectx->cached_n_tokens == n_tokens) {
+    if (!stop_after_layer0_qk &&
+        ectx->cached_gf && ectx->cached_n_tokens == n_tokens) {
         return ectx->cached_gf;
     }
 
-build:
     esmc_reset_compute(ectx);
     if (!esmc_prepare_compute(ectx)) {
         return nullptr;
     }
+    ectx->profile_builds++;
 
     esmc_model & model = *ectx->model;
     const esmc_hparams & p = model.hparams;
@@ -209,7 +205,9 @@ build:
         }
 
         cur = ggml_mul_mat(ctx, esmc_wt(ectx, layer.wo), cur);
-        cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        if (!model.residue_folded) {
+            cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        }
         cur = ggml_add(ctx, cur, residual);
 
         residual = cur;
@@ -217,10 +215,12 @@ build:
 
         struct ggml_tensor * gate = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_gate), cur);
         struct ggml_tensor * up   = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_up), cur);
-        gate = ggml_silu(ctx, gate);
-        cur  = ggml_mul(ctx, gate, up);
+        // Fused SwiGLU (silu(gate) * up) — one op instead of silu + mul.
+        cur  = ggml_swiglu_split(ctx, gate, up);
         cur  = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_down), cur);
-        cur  = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        if (!model.residue_folded) {
+            cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        }
         cur  = ggml_add(ctx, cur, residual);
     }
 
@@ -233,8 +233,10 @@ build:
     if (!esmc_alloc_compute(ectx, gf)) {
         return nullptr;
     }
-    ectx->cached_n_tokens = n_tokens;
-    ectx->cached_gf       = gf;
+    if (!stop_after_layer0_qk) {
+        ectx->cached_n_tokens = n_tokens;
+        ectx->cached_gf       = gf;
+    }
     return gf;
 }
 
@@ -248,14 +250,18 @@ int esmc_run_graph(
         return -1;
     }
     ggml_backend_tensor_set(inp_tokens, tokens, 0, n_tokens * sizeof(int32_t));
+    ectx->profile_uploads += (int64_t) n_tokens * (int64_t) sizeof(int32_t);
 
     struct ggml_tensor * pos = ggml_graph_get_tensor(gf, "pos");
     if (pos) {
-        std::vector<int32_t> positions(n_tokens);
-        for (int i = 0; i < n_tokens; i++) {
-            positions[i] = i;
+        if ((int) ectx->positions.size() < n_tokens) {
+            ectx->positions.resize(n_tokens);
         }
-        ggml_backend_tensor_set(pos, positions.data(), 0, n_tokens * sizeof(int32_t));
+        for (int i = 0; i < n_tokens; i++) {
+            ectx->positions[i] = i;
+        }
+        ggml_backend_tensor_set(pos, ectx->positions.data(), 0, n_tokens * sizeof(int32_t));
+        ectx->profile_uploads += (int64_t) n_tokens * (int64_t) sizeof(int32_t);
     }
 
     if (ggml_backend_is_cpu(ectx->model->backend)) {
@@ -279,18 +285,24 @@ void esmc_reset_compute(esmc_context * ectx) {
         ggml_free(ectx->ctx_compute);
         ectx->ctx_compute = nullptr;
     }
-    ectx->cached_n_tokens = 0;
+    ectx->cached_n_tokens = -1;
     ectx->cached_gf       = nullptr;
-    ectx->cached_max_len  = 0;
-    ectx->cached_n_seq    = 0;
+    ectx->cached_max_len  = -1;
+    ectx->cached_n_seq    = -1;
+    ectx->cached_use_mask = false;
     ectx->cached_gf_batch = nullptr;
+    // Backend input tensors are invalidated when the compute context is freed.
+    ectx->cached_pos_t    = nullptr;
+    ectx->cached_mask_t   = nullptr;
 }
 
 struct ggml_cgraph * esmc_build_graph_batch(
     esmc_context * ectx,
     int32_t max_len,
-    int32_t n_seq) {
-    if (ectx->cached_gf_batch && ectx->cached_max_len == max_len && ectx->cached_n_seq == n_seq) {
+    int32_t n_seq,
+    bool use_mask) {
+    if (ectx->cached_gf_batch && ectx->cached_max_len == max_len &&
+        ectx->cached_n_seq == n_seq && ectx->cached_use_mask == use_mask) {
         return ectx->cached_gf_batch;
     }
 
@@ -298,6 +310,7 @@ struct ggml_cgraph * esmc_build_graph_batch(
     if (!esmc_prepare_compute(ectx)) {
         return nullptr;
     }
+    ectx->profile_builds++;
 
     esmc_model & model = *ectx->model;
     const esmc_hparams & p = model.hparams;
@@ -322,10 +335,14 @@ struct ggml_cgraph * esmc_build_graph_batch(
     ggml_set_input(pos);
     ggml_set_name(pos, "pos");
 
-    // Attention mask: flash_attn_ext requires F16 mask
-    struct ggml_tensor * mask = ggml_new_tensor_4d(ctx, GGML_TYPE_F16, max_len, max_len, 1, n_seq);
-    ggml_set_input(mask);
-    ggml_set_name(mask, "mask");
+    // Attention mask: optional. Uniform-length batches are non-causal encoders,
+    // so no mask is needed at all (and the maskless flash path is faster).
+    struct ggml_tensor * mask = nullptr;
+    if (use_mask) {
+        mask = ggml_new_tensor_4d(ctx, GGML_TYPE_F16, max_len, max_len, 1, n_seq);
+        ggml_set_input(mask);
+        ggml_set_name(mask, "mask");
+    }
 
     // Embedding lookup: tok_embd [n_embd, n_vocab] x tokens [max_len*n_seq] -> [n_embd, max_len*n_seq]
     // Reshape to 3D: [n_embd, max_len, n_seq]
@@ -389,7 +406,9 @@ struct ggml_cgraph * esmc_build_graph_batch(
         }
 
         cur = ggml_mul_mat(ctx, esmc_wt(ectx, layer.wo), cur);
-        cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        if (!model.residue_folded) {
+            cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        }
         cur = ggml_add(ctx, cur, residual);
 
         residual = cur;
@@ -397,10 +416,12 @@ struct ggml_cgraph * esmc_build_graph_batch(
 
         struct ggml_tensor * gate = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_gate), cur);
         struct ggml_tensor * up   = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_up), cur);
-        gate = ggml_silu(ctx, gate);
-        cur  = ggml_mul(ctx, gate, up);
+        // Fused SwiGLU (silu(gate) * up) — one op instead of silu + mul.
+        cur  = ggml_swiglu_split(ctx, gate, up);
         cur  = ggml_mul_mat(ctx, esmc_wt(ectx, layer.ffn_down), cur);
-        cur  = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        if (!model.residue_folded) {
+            cur = ggml_scale(ctx, cur, 1.0f / p.residue_scale);
+        }
         cur  = ggml_add(ctx, cur, residual);
     }
 
@@ -413,9 +434,10 @@ struct ggml_cgraph * esmc_build_graph_batch(
     if (!esmc_alloc_compute(ectx, gf)) {
         return nullptr;
     }
-    ectx->cached_max_len   = max_len;
-    ectx->cached_n_seq     = n_seq;
-    ectx->cached_gf_batch  = gf;
+    ectx->cached_max_len  = max_len;
+    ectx->cached_n_seq    = n_seq;
+    ectx->cached_use_mask = use_mask;
+    ectx->cached_gf_batch = gf;
     return gf;
 }
 
