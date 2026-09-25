@@ -263,7 +263,14 @@ Uniform-length sequences, M4 Max Metal F16, median of 15 iterations; batch 1 is 
 | 16 | **8,896** | 8,922 | 7,657 |
 | 32 | 8,879 | 8,682 | 7,030 |
 
-The optimal batch size is length-dependent: short sequences favor batch 16 (~2.0× over batch 1), medium favor batch 4 (~1.14×), and long sequences are fastest at batch 1 — batching **reduces** per-residue throughput there. The `--fasta` batcher uses this schedule by default (`--max-batch 0` = length-aware; `--max-batch N` sets a fixed cap). On the corpora above the schedule is **1.09–1.21×** faster than a fixed batch 32.
+The optimal batch size is length-dependent: short sequences favor batch 16 (~2.0× over batch 1), medium favor batch 4 (~1.14×), and long sequences are fastest at batch 1 — batching **reduces** per-residue throughput there. The `--fasta` batcher uses this schedule by default (`--max-batch 0` = length-aware; `--max-batch N` sets a fixed cap). On the corpora above the schedule is **1.08–1.21×** faster than a fixed batch 32:
+
+| Corpus | Auto | Fixed 32 | Gain |
+|---|---:|---:|---:|
+| short 2000×45 aa | 8,030 | 7,387 | 1.09× |
+| medium 1000×233 aa | 8,855 | 7,318 | 1.21× |
+| long 100×848 aa | 6,670 | 6,190 | 1.08× |
+| mixed 1000 seq | 7,161 | 6,380 | 1.12× |
 
 ### Peak memory (long bucket, 36 GB M4 Max)
 

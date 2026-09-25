@@ -713,8 +713,16 @@ f16, residues/s):
 
 Optimal batch is length-dependent (short 16, medium 4, long 1). **Implemented in M-C:**
 the `--fasta` batcher uses a length-aware schedule by default (`--max-batch 0`,
-`esmc_auto_batch_size()`), overridable with a fixed `--max-batch N`. Gain over
-fixed 32: 1.09–1.21×.
+`esmc_auto_batch_size()`), overridable with a fixed `--max-batch N`.
+
+Auto schedule vs fixed batch 32 (residues/s, M4 Max Metal f16, median of 3):
+
+| Corpus | Auto | Fixed 32 | Gain |
+|--------|-----:|---------:|-----:|
+| short, 2000×45 aa   | 8,030 | 7,387 | 1.09× |
+| medium, 1000×233 aa | 8,855 | 7,318 | 1.21× |
+| long, 100×848 aa    | 6,670 | 6,190 | 1.08× |
+| mixed, 1000 seq     | 7,161 | 6,380 | 1.12× |
 
 ### 12.3 M-B — bucketed single-sequence cache (negative)
 

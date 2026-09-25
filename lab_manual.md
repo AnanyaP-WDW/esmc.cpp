@@ -1792,6 +1792,15 @@ as a fixed override. Measured over fixed 32: short 1.09×, medium 1.21×, long
 1.08×, mixed 1.12× (residues/s). Correctness unchanged (100/100, min cosine
 0.99999).
 
+Auto schedule vs fixed batch 32 (residues/s, M4 Max Metal f16, median of 3):
+
+| Corpus | Auto | Fixed 32 | Gain |
+|--------|-----:|---------:|-----:|
+| short, 2000×45 aa   | 8,030 | 7,387 | 1.09× |
+| medium, 1000×233 aa | 8,855 | 7,318 | 1.21× |
+| long, 100×848 aa    | 6,670 | 6,190 | 1.08× |
+| mixed, 1000 seq     | 7,161 | 6,380 | 1.12× |
+
 #### M-D — mask/position caching
 
 Repeated equal-shape batches: `upload_bytes` drops from 2304 (first call, with

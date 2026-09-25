@@ -268,7 +268,23 @@ Table~\ref{tab:batching} shows that end-to-end the batching benefit is concentra
   \end{tabular}
 \end{table}
 
-Table~\ref{tab:batch-residues} reports the per-residue rate across batch sizes: short sequences gain up to $2.0\times$ at batch~16, medium sequences peak at batch~4 ($1.14\times$), and long sequences are fastest unbatched. The \texttt{--fasta} batcher therefore uses a length-aware schedule by default (a fixed cap is still selectable), which is $1.09$--$1.21\times$ faster than a fixed batch size of 32 on these corpora.
+Table~\ref{tab:batch-residues} reports the per-residue rate across batch sizes: short sequences gain up to $2.0\times$ at batch~16, medium sequences peak at batch~4 ($1.14\times$), and long sequences are fastest unbatched. The \texttt{--fasta} batcher therefore uses a length-aware schedule by default (a fixed cap is still selectable), which is $1.08$--$1.21\times$ faster than a fixed batch size of 32 on these corpora (Table~\ref{tab:batch-schedule}).
+
+\begin{table}
+  \centering
+  \caption{Length-aware batch schedule (\texttt{--max-batch 0}) versus a fixed batch size of 32, residues/s on M4 Max Metal F16, median of 3 runs.}
+  \label{tab:batch-schedule}
+  \begin{tabular}{lrrr}
+    \toprule
+    Corpus & Auto & Fixed 32 & Gain \\
+    \midrule
+    short, 2000$\times$45\,aa   & 8{,}030 & 7{,}387 & 1.09$\times$ \\
+    medium, 1000$\times$233\,aa & 8{,}855 & 7{,}318 & 1.21$\times$ \\
+    long, 100$\times$848\,aa    & 6{,}670 & 6{,}190 & 1.08$\times$ \\
+    mixed, 1000 seq             & 7{,}161 & 6{,}380 & 1.12$\times$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
 
 \subsection{Memory Footprint}
 
